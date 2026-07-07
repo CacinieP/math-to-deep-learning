@@ -2,6 +2,21 @@
 
 > 同一个数学概念，从纸笔推导（Mathematics-Universe）到 GPU 训练（PyTorch），是一条连续的理解线。
 
+---
+
+### 🪐 姊妹仓库：[CacinieP/Mathematics-Universe](https://github.com/CacinieP/Mathematics-Universe)
+
+本仓库的所有内容都以 **纯数学母仓库** 为地基。两个仓库配套使用，形成完整的「数学 → 深度学习」学习闭环：
+
+| 仓库 | 定位 | 回答的问题 |
+|------|------|-----------|
+| 🪐 **[Mathematics-Universe](https://github.com/CacinieP/Mathematics-Universe)** | 纯数学纵向知识图谱（高中→考研→超纲） | "定理怎么证？概念怎么定义？" |
+| 📡 **math-to-deep-learning**（本仓库） | 数学在 ML 中的应用棱镜 | "这个概念怎么变成模型的一层？代码怎么写？" |
+
+> 📌 本仓库文章中的 `[[Mathematics-Universe/03-高等数学/...]]` 形式链接，均指向母仓库的详细推导。**建议同时 Star 两个仓库，对照阅读。**
+
+---
+
 ## 设计理念
 
 本仓库是 [CacinieP/Mathematics-Universe](https://github.com/CacinieP/Mathematics-Universe) 的**应用侧延伸**。纯数学仓库回答"它是什么、为什么成立"，本仓库回答"它怎么用、代码怎么写"。
