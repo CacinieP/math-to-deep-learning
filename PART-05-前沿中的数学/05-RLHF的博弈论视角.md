@@ -1,6 +1,6 @@
 # RLHF 的博弈论视角
 
-> RLHF 不只是"用人类反馈训练"。博弈论里，它是一个**双人博弈**：人类（或奖励模型）设定目标，策略（语言模型）最大化奖励。问题在于——如果纯最大化奖励，策略会**reward hacking**（钻空子）。KL 约束把博弈变成"潜在博弈"，确保收敛到**纳什均衡**而非退化策略。
+> RLHF 不只是"用人类反馈训练"。博弈论里，它可以被看作**双人博弈**：人类（或奖励模型）设定目标，策略（语言模型）最大化奖励。问题在于——如果纯最大化奖励，策略会**reward hacking**（钻空子）。但 KL 正则的 RLHF 本质是**单智能体约束优化**（目标函数自身即可视为平凡的势函数）；潜在博弈框架在此不提供额外收敛保证，PPO 的收敛性需另行分析。
 
 **难度**：[前沿]（需要博弈论 + 强化学习 + KL 散度）
 
@@ -18,7 +18,7 @@ $$u_A(\pi_A^*, \pi_B^*) \geq u_A(\pi_A, \pi_B^*) \quad \forall \pi_A$$
 
 **意义**：纳什均衡是"谁都不想先变"的稳定状态。
 
-> 📖 博弈论基础：[[Mathematics-Universe/06-超纲拓展/数值分析.md]]
+> 📖 博弈论基础：纳什均衡、势博弈——Monderer & Shapley 1996
 
 ### 1.3 潜在博弈
 
@@ -36,6 +36,8 @@ $$u_i(\pi_i', \pi_{-i}) - u_i(\pi_i, \pi_{-i}) = \Phi(\pi_i', \pi_{-i}) - \Phi(\
 
 - **奖励模型 RM**：代表人类偏好，给出标量奖励 $r(x, y)$
 - **策略 $\pi$**：语言模型，生成回答 $y$，目标 $\max \mathbb{E}[r(x, y)]$
+
+RM 由 **Bradley-Terry 模型**训练：$p(y_w \succ y_l \mid x) = \sigma(r(x, y_w) - r(x, y_l))$——它是奖励模型训练与 DPO 推导的起点。
 
 ### 2.2 不加约束的灾难
 
@@ -55,17 +57,19 @@ $$\max_\pi \mathbb{E}_{x, y\sim\pi}[r(x, y)] - \beta\,D_{\text{KL}}(\pi(\cdot|x)
 - 第一项：策略想最大化 RM 奖励
 - 第二项：策略不能离参考模型 $\pi_{\text{ref}}$ 太远（保持语言能力）
 
-**这构成一个潜在博弈**——目标函数单调，梯度更新收敛。
+**KL 正则的 RLHF 本质是单智能体约束优化**（目标函数自身即可视为平凡的势函数）；潜在博弈框架在此不提供额外收敛保证，PPO 的收敛性需另行分析。
 
 ---
 
 ## 三、RLHF 的收敛性
 
-### 3.1 潜在博弈保证收敛
+### 3.1 KL 目标的收敛性
 
-带 KL 约束的 RLHF 目标是**强凹**的（KL 项强凸），策略梯度/PPO 收敛到唯一最优解：
+强凹性仅对**表格式策略空间**（按 L2 度量，且限于内部——不触及确定性策略边界）成立：此时 KL 项强凸使目标**强凹**，存在唯一最优解
 
 $$\pi^* = \arg\max_\pi \mathbb{E}[r] - \beta\,D_{\text{KL}}(\pi \| \pi_{\text{ref}})$$
+
+但对**参数化语言模型与 PPO 无此定理保证**——收敛性需另行分析。
 
 ### 3.2 闭式解
 
@@ -124,7 +128,7 @@ def ppo_step(policy, ref_policy, rm, prompts, beta=0.1, clip=0.2):
     # 3. 算 KL 惩罚(蒙特卡洛估计)
     with torch.no_grad():
         ref_logp = ref_policy.logp(prompts, responses)
-    kl = (old_logp - ref_logp).mean()
+    kl = (old_logp - ref_logp).mean()  # 教学简化：常规做法是逐样本/逐 token 计入 advantage，而非批均值标量
     penalized = rewards - beta * kl
     # 4. PPO 更新(带 clip 防止策略大跳)
     new_logp = policy.logp(prompts, responses)
@@ -208,7 +212,7 @@ RLHF = 奖励模型 vs 策略 的博弈
 
 ## 联系网络
 
-⬆ 上游：[[Mathematics-Universe/06-超纲拓展/数值分析.md]]（博弈论基础），[[轴线E/03-互信息→RLHF]]（信息论视角）
+⬆ 上游：（博弈论基础：纳什均衡、势博弈——Monderer & Shapley 1996），[[轴线E/03-互信息→RLHF]]（信息论视角）
 
 ⬇ 下游：大模型对齐、安全训练
 

@@ -133,14 +133,14 @@ import math
 
 def xavier_init_(tensor):
     """Xavier 均匀初始化"""
-    fan_in, fan_out = tensor.shape[-2], tensor.shape[-1]
+    fan_in, fan_out = tensor.shape[-1], tensor.shape[-2]  # nn.Linear 权重形状为 (out, in)
     a = math.sqrt(6.0 / (fan_in + fan_out))
     with torch.no_grad():
         tensor.uniform_(-a, a)
 
 def xavier_normal_(tensor):
     """Xavier 正态初始化"""
-    fan_in, fan_out = tensor.shape[-2], tensor.shape[-1]
+    fan_in, fan_out = tensor.shape[-1], tensor.shape[-2]  # nn.Linear 权重形状为 (out, in)
     std = math.sqrt(2.0 / (fan_in + fan_out))
     with torch.no_grad():
         tensor.normal_(0, std)
@@ -171,21 +171,22 @@ $$\text{ReLU}(x) = \max(0, x)$$
     ReLU(x) = 0    (概率 50%, 当 x < 0)
     ReLU(x) = x    (概率 50%, 当 x > 0)
 
-    E[ReLU(x)] = 0.5 * 0 + 0.5 * E[x | x > 0] = 0.5 * sqrt(2/π) ≈ 0.4
-    Var(ReLU(x)) = E[ReLU(x)^2] - E[ReLU(x)]^2 = 0.5 - 0.16 = 0.34
+    E[ReLU(x)]   = 0.5 * 0 + 0.5 * E[x | x > 0] = 0.5 * sqrt(2/π) ≈ 0.4   ← 均值不再为 0
+    E[ReLU(x)^2] = 0.5 * E[x^2] = 0.5                                    ← 二阶矩减半
+    Var(ReLU(x)) = E[ReLU(x)^2] - E[ReLU(x)]^2 = 0.5 - 0.16 ≈ 0.34
 ```
 
-**ReLU 把方差从 1 降到了约 0.5**——信号衰减了一半。
+注意区分**二阶矩**与**方差**：ReLU 把二阶矩 E[h²] 从 1 降到约 0.5（半数信号被置零），而 Var(h) = E[h²] − (E[h])² ≈ 0.34（因为均值不再是 0）。He 的推导基于**二阶矩守恒**（在近似零均值的假设下与方差守恒一致），因此下面的推导采用 E[h²] 的记号。
 
 ### 4.2 推导
 
 在 ReLU 下，前向传播的方差：
 
-$$\text{Var}(h) = \frac{1}{2} n_{in} \sigma_w^2 \text{Var}(x)$$
+$$\mathbb{E}[h^2] = \frac{1}{2} n_{in} \sigma_w^2 \, \mathbb{E}[x^2]$$
 
-（系数 $1/2$ 来自 ReLU 只让一半信号通过）
+（系数 $1/2$ 来自 ReLU 只让一半信号通过；He 推导用的是二阶矩而非方差）
 
-设 $\text{Var}(h) = \text{Var}(x) = 1$：
+设 $\mathbb{E}[h^2] = \mathbb{E}[x^2] = 1$：
 $$\sigma_w = \sqrt{\frac{2}{n_{in}}}$$
 
 这就是 **He 初始化**。
@@ -193,7 +194,7 @@ $$\sigma_w = \sqrt{\frac{2}{n_{in}}}$$
 ```python
 def he_init_(tensor):
     """He 初始化（适用于 ReLU）"""
-    fan_in = tensor.shape[-2]
+    fan_in = tensor.shape[-1]  # nn.Linear 权重形状为 (out, in)，fan_in 取第 1 维
     std = math.sqrt(2.0 / fan_in)
     with torch.no_grad():
         tensor.normal_(0, std)
@@ -212,7 +213,9 @@ torch.nn.init.kaiming_uniform_(W)  # He 均匀
 | sigmoid | 1 | $2/(n_{in}+n_{out})$ | Xavier |
 | ReLU | 1/2 | $2/n_{in}$ | He |
 | LeakyReLU($\alpha$) | $(1+\alpha^2)/2$ | $2/((1+\alpha^2)n_{in})$ | He 变体 |
-| Swish/SiLU | ~1.78 | $1.78/n_{in}$ | 推导更复杂 |
+| Swish/SiLU | ~0.36* | $\approx 2.8/n_{in}$ | 推导更复杂 |
+
+\* Swish/SiLU 的因子来自数值模拟（$x \sim \mathcal{N}(0,1)$ 下 $\mathbb{E}[h^2]/\mathbb{E}[x^2] \approx 0.356$，与 ReLU 行同口径），对应初始化方差 $\approx 2.8/n_{in}$。
 
 ---
 

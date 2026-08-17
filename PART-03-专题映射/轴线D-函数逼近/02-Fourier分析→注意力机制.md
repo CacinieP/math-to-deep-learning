@@ -64,7 +64,7 @@ $$\text{out}_i = \sum_{j=1}^N \underbrace{\text{softmax}\left(\frac{q_i \cdot k_
 | Fourier | Attention |
 |---------|-----------|
 | 基函数 $e^{inx}$（固定） | 值向量 $v_j$（数据自适应） |
-| 系数 $c_n = \langle f, e_n\rangle$（内积） | 权重 $\alpha_{ij} \propto e^{q_i \cdot k_j}$（点积） |
+| 系数 $c_n = \langle f, e_n\rangle$（内积） | 权重 $\alpha_{ij} \propto e^{q_i \cdot k_j/\sqrt{d_k}}$（点积） |
 | 重建 $f = \sum c_n e_n$ | 输出 $\text{out}_i = \sum \alpha_{ij} v_j$ |
 
 **关键差异**：Fourier 的基是**预先固定的**（三角函数），注意力的基是**从数据学出来的**（$V$ 矩阵）。
@@ -173,13 +173,17 @@ class MultiHeadAttention(torch.nn.Module):
 ### 5.3 验证缩放的作用
 
 ```python
-# 不缩放时, d_k 大 → softmax 饱和 → 梯度消失
+# softmax 具有平移不变性：起作用的是分数之间的"差"，不是绝对值。
+# 因此以 0 为基准分数，观察分数差大小对 softmax 分布与梯度的影响
 d_k = 512
 q = torch.randn(d_k); k = torch.randn(d_k)
-raw = (q @ k)
-print("未缩放最大分数差:", F.softmax(torch.tensor([raw, raw+1]), dim=0))
-# 缩放后分布更平缓, 梯度健康
-scaled = raw / math.sqrt(d_k)
+raw = q @ k                              # 未缩放: Var(q·k)=d_k, 分数差量级 ~√d_k≈23
+for s in [raw, raw / math.sqrt(d_k)]:    # 未缩放 vs 除以 √d_k（分数差量级 ~1）
+    p = F.softmax(torch.tensor([0.0, s]), dim=0)
+    grad_scale = (p[0] * p[1]).item()    # softmax 输出对 logit 的梯度尺度 ~ p(1-p)
+    print(f"分数差={s.item():9.3f}  softmax={p.tolist()}  梯度尺度≈{grad_scale:.4f}")
+# 未缩放: |分数差|≈23 → 分布接近 one-hot（如 [1.0, 0.0]）→ 梯度尺度→0（饱和）
+# 缩放后: |分数差|≈1   → 分布平缓（如 [0.68, 0.32]）      → 梯度健康
 ```
 
 ---
@@ -250,7 +254,7 @@ Attention: token = 其他 token 的值(自适应基)的加权叠加, 权重 = �
 
 ### 论文
 - **Vaswani et al. (2017)** "Attention Is All You Need"——Transformer 原文
-- **Tay et al. (2020)** "Synthesizer: Rethinking Self-Attention"——注意力与 Fourier 的关系探讨
+- **Lee et al. (2021)** "FNet: Mixing Tokens with Fourier Transforms"——用 Fourier 变换替换自注意力子层，是"注意力 vs Fourier"的直接对照实验
 
 ### 关联文章
 - [[01-Weierstrass逼近→通用近似定理]]（函数逼近的另一组基）

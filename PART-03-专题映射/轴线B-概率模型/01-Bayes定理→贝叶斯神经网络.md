@@ -75,7 +75,7 @@ $$p(w|D) = \mathcal{N}(\mu_{\text{post}}, \Sigma_{\text{post}})$$
 
 其中：
 
-$$\Sigma_{\text{post}} = \left(\frac{1}{\sigma^2}XX^T + \frac{1}{\tau^2}I\right)^{-1}, \quad \mu_{\text{post}} = \Sigma_{\text{post}} \cdot \frac{1}{\sigma^2}Xy$$
+$$\Sigma_{\text{post}} = \left(\frac{1}{\sigma^2}X^TX + \frac{1}{\tau^2}I\right)^{-1}, \quad \mu_{\text{post}} = \Sigma_{\text{post}} \cdot \frac{1}{\sigma^2}X^Ty$$
 
 **预测分布**（对 $w$ 积分）：
 
@@ -85,7 +85,7 @@ $$p(y_*|x_*, D) = \mathcal{N}(y_*; \mu_{\text{post}}^T x_*, \sigma^2 + x_*^T \Si
 - $\sigma^2$：数据噪声（固有不确定性）
 - $x_*^T \Sigma_{\text{post}} x_*$：模型不确定性（权重分布带来的额外不确定性）
 
-**在训练数据附近**，$x_*$ 落在 $X$ 的列空间中 → $\Sigma_{\text{post}}$ 的影响小 → 预测置信高
+**在训练数据附近**，$x_*$ 靠近训练输入所张成的子空间/训练数据密集区域 → $\Sigma_{\text{post}}$ 的影响小 → 预测置信高
 
 **在训练数据之外**，$x_*$ 远离 $X$ → $\Sigma_{\text{post}}$ 的影响大 → 预测置信低
 
@@ -150,7 +150,7 @@ $$\min_\phi D_{KL}(q_\phi(\theta) \| p(\theta|D))$$
 
 但 $p(\theta|D)$ 本身不可计算。用Bayes公式重写：
 
-$$D_{KL}(q_\phi(\theta) \| p(\theta|D)) = \mathbb{E}_{q_\phi}[\log q_\phi(\theta)] - \mathbb{E}_{q_\phi}[\log p(D|\theta)] - \log p(D)$$
+$$D_{KL}(q_\phi(\theta) \| p(\theta|D)) = \mathbb{E}_{q_\phi}[\log q_\phi(\theta)] - \mathbb{E}_{q_\phi}[\log p(D|\theta)] - \mathbb{E}_{q_\phi}[\log p(\theta)] + \log p(D)$$
 
 忽略与 $\phi$ 无关的 $\log p(D)$，得到**证据下界（ELBO）**：
 
@@ -221,18 +221,19 @@ class BayesianMLP(nn.Module):
         证据下界（ELBO）损失
         n_samples: 蒙特卡洛采样次数
         """
-        log_likelihood = 0
+        cross_entropy = 0
         kl = self.kl_divergence()
 
         for _ in range(n_samples):
             y_pred = self.forward(x)
-            log_likelihood += F.cross_entropy(y_pred, y, reduction='sum')
+            # F.cross_entropy 返回负对数似然（交叉熵）
+            cross_entropy += F.cross_entropy(y_pred, y, reduction='sum')
 
-        log_likelihood /= n_samples
+        cross_entropy /= n_samples
 
         # ELBO = E[log p(D|θ)] - KL(q||p)
-        # 最小化 -ELBO = KL - E[log p(D|θ)]
-        return kl / len(x) - log_likelihood / len(x)
+        # 最小化 -ELBO = KL + 交叉熵（即负对数似然项）
+        return kl / len(x) + cross_entropy / len(x)
 ```
 
 ### 3.4 贝叶斯神经网络 vs 普通神经网络
@@ -371,8 +372,7 @@ MC Dropout:      多次前向传播采样 = 从后验采样
 ### 论文
 - **贝叶斯深度学习综述**：Gal (2016) "Uncertainty in Deep Learning" — PhD thesis, UCL
 - **MC Dropout**：Gal & Ghahramani (2016) "Dropout as a Bayesian Approximation"
-- **贝叶斯神经网络**：Blundell et al. (2015) "Weight Uncertainty in Neural Networks" — 重参数化技巧的首次应用
-- **Dirichlet扩散模型**：Wang et al. (2023) "Probabilistic Deep Learning" — 不确定性校准
+- **贝叶斯神经网络**：Blundell et al. (2015) "Weight Uncertainty in Neural Networks" — 重参数化技巧首次系统用于 BNN 权重（Bayes by Backprop；技巧本身更早出自 Kingma & Welling 2013 / Rezende et al. 2014）
 
 ### 课程
 - [UCL Bayesian Deep Learning](https://www.bayes-deep-learning.net/) — Gal 的课程讲义

@@ -93,7 +93,7 @@ $$\mathbf{x}_{k+1} = \mathbf{x}_k + \mathbf{p}_k = \mathbf{x}_k - H(\mathbf{x}_k
 | 步长 | $-\eta \nabla f$ | $-H^{-1} \nabla f$ |
 | 方向 | 最陡下降方向 | 考虑了曲率的方向 |
 | 步长大小 | 需要手动选择 $\eta$ | 自动（由 Hessian 决定） |
-| 收敛速度 | 线性（$O(k)$） | 二次（$O(k^2)$） |
+| 收敛速度 | 线性（误差每步乘常数，$e_{k+1} \leq C e_k$） | 二次（误差每步平方，$e_{k+1} \leq C e_k^2$） |
 | 每步计算 | $O(n)$ | $O(n^3)$（Hessian 求逆） |
 | 内存 | $O(n)$ | $O(n^2)$（存储 Hessian） |
 
@@ -216,17 +216,18 @@ optimizer.step(closure)
 $$w_{k+1} = w_k - \frac{f'(w_k)}{f''(w_k)}$$
 
 - $f''(w_k) > 0$（曲率大，山谷陡）：步长小（保守）
-- $f''(w_k) < 0$（曲率小，山谷平缓）：步长大（大胆）
+- $f''(w_k) > 0$ 且数值小（曲率小，山谷平缓）：步长大（大胆）——自适应步长的论证只在这一情形（正曲率）下成立
+- $f''(w_k) < 0$（负曲率，局部上凸）：二次模型没有极小值，Newton 步指向"上山"方向、方向不可靠——这是经典危险情形，需要信赖域（trust region）或 Levenberg-Marquardt 式正则化来兜底
 
 **这就是自适应学习率的直觉来源**——不同参数有不同的"曲率"，应该用不同的步长。
 
 ### 4.2 二阶信息在 NLP 中的使用
 
-**K-FAC**（Kronecker-Factored Approximate Curvature）：利用神经网络的全连接层和卷积层的结构，将 Hessian 近似为 Kronecker 积：
+**K-FAC**（Kronecker-Factored Approximate Curvature）：利用神经网络的全连接层和卷积层的结构，将 **Fisher 信息矩阵**（自然梯度方法中的曲率度量，而非 Hessian 本身）近似为 Kronecker 积：
 
-$$H \approx F \otimes G$$
+$$F_{\text{Fisher}} \approx A \otimes B$$
 
-其中 $F$ 和 $G$ 是小矩阵，可以通过低秩分解高效存储和求逆。
+这是 **Kronecker 因子分解**（而非低秩分解）：每层只需两个小矩阵 $A$、$B$（分别来自该层输入激活和输出梯度的二阶统计），存储和求逆它们远比处理满矩阵便宜。
 
 ```python
 # 概念：K-FAC 对单层的近似
@@ -240,7 +241,7 @@ $$H \approx F \otimes G$$
 
 **K-FAC 在大型语言模型训练中的应用**：
 - DeepMind 用 K-FAC 加速 Transformer 训练
-- 在 GPT 规模模型上，K-FAC 的每步计算是 SGD 的约 3-5 倍，但收敛步数减少约 10 倍
+- 在大规模模型上，K-FAC 每步的计算开销高于 SGD，但换取了更快的收敛（更少步数达到同等损失），整体上可加速训练
 
 ### 4.3 Newton-CG 方法
 
@@ -293,7 +294,7 @@ $$H = Q\Lambda Q^T$$
   少数特征值很大（"尖锐区域"）
 ```
 
-- **零空间（spectral gap）**：大部分特征值 $\approx 0$ 意味着 Hessian 接近奇异——参数空间中有很多"平坦方向"
+- **零空间**：大部分特征值 $\approx 0$ 意味着 Hessian 接近奇异——参数空间中有很多"平坦方向"
 - **少数大特征值**：对应损失 landscape 中的"尖锐极小"
 - **Hessian 的迹 / 有效秩**：用来衡量优化难度
 
