@@ -60,10 +60,10 @@ $$u_1 = \frac{Ae_1}{\sqrt{2}} = \frac{1}{\sqrt{2}}\begin{pmatrix} 1 \\ 0 \\ -1 \
 
 （$A$ 的两列线性无关，列空间恰为 2 维，这 2 个左奇异向量已经够用，无需再补第 3 列。）
 
-**SVD**：
-$$A = \underbrace{\begin{pmatrix} 1/\sqrt{2} & 1/\sqrt{3} \\ 0 & 1/\sqrt{3} \\ -1/\sqrt{2} & 1/\sqrt{3} \end{pmatrix}}_{U} \underbrace{\begin{pmatrix} \sqrt{2} & 0 \\ 0 & \sqrt{3} \\ 0 & 0 \end{pmatrix}}_{\Sigma} \underbrace{\begin{pmatrix} 1 & 0 \\ 0 & 1 \end{pmatrix}}_{V^T}$$
+**SVD**（用 $m\times 2$ 的"瘦（thin）"形式，$\Sigma$ 取 $2\times 2$ 对角阵）：
+$$A = \underbrace{\begin{pmatrix} 1/\sqrt{2} & 1/\sqrt{3} \\ 0 & 1/\sqrt{3} \\ -1/\sqrt{2} & 1/\sqrt{3} \end{pmatrix}}_{U_{3\times 2}} \underbrace{\begin{pmatrix} \sqrt{2} & 0 \\ 0 & \sqrt{3} \end{pmatrix}}_{\Sigma_{2\times 2}} \underbrace{\begin{pmatrix} 1 & 0 \\ 0 & 1 \end{pmatrix}}_{V^T}$$
 
-（若按惯例把奇异值降序排列，则 $\sigma_1 = \sqrt{3}$、$\sigma_2 = \sqrt{2}$，把上式各块的列相应对调即可。）
+（若按惯例把奇异值降序排列，则 $\sigma_1 = \sqrt{3}$、$\sigma_2 = \sqrt{2}$，把上式各块的列相应对调即可。满 $3\times 3$ 形式需给 $\Sigma$ 补零行、给 $U$ 补一个与前两列正交的第三列，结果相同。）
 
 **数值验证**：
 
@@ -73,8 +73,10 @@ A = np.array([[1, 1], [0, 1], [-1, 1]], dtype=float)
 U = np.array([[1/np.sqrt(2), 1/np.sqrt(3)],
               [0,            1/np.sqrt(3)],
               [-1/np.sqrt(2), 1/np.sqrt(3)]])
-Sigma = np.array([[np.sqrt(2), 0], [0, np.sqrt(3)], [0, 0]])
-print(np.max(np.abs(U @ Sigma @ np.eye(2).T - A)))  # 0.0 —— 精确重构 A
+Sigma = np.array([[np.sqrt(2), 0], [0, np.sqrt(3)]])   # 2x2 瘦形式，与 3x2 的 U 匹配
+V = np.eye(2)
+print(np.max(np.abs(U @ Sigma @ V.T - A)))  # 0.0 —— 精确重构 A
+print(np.max(np.abs(U.T @ U - np.eye(2))))  # 0.0 —— U 列正交
 ```
 
 **低秩截断示例**：只保留最大的奇异值 $\sqrt{3}$（对应 $v_2 = e_2$，$u_2 = (1,1,1)/\sqrt{3}$）：

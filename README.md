@@ -23,7 +23,7 @@
 ![正文](https://img.shields.io/badge/正文-38篇-blue)
 ![更新](https://img.shields.io/badge/最后更新-2026--08--17-orange)
 
-**最新更新（[2026-08-17] 审核修复）**：依据全量内容审核修复约 60 处数学/代码/链接问题（含补齐 LICENSE、修复目录死链）。前次更新（[2026-07-07] 全量补全）：完成度从 19% → 100%，PART-01 至 PART-05 + APPENDIX 全部填满。详见 [CHANGELOG](./CHANGELOG.md)。
+**最新更新（[2026-08-17] 审核修复）**：依据全量内容审核修复约 110 处数学/代码/链接问题（含补齐 LICENSE、修复目录死链）。前次更新（[2026-07-07] 全量补全）：完成度从 19% → 100%，PART-01 至 PART-05 + APPENDIX 全部填满。详见 [CHANGELOG](./CHANGELOG.md)。
 
 ---
 
