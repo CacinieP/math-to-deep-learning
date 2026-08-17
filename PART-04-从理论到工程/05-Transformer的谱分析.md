@@ -36,7 +36,7 @@ $$\rho(M) > 1 \Rightarrow \|M^L\| \to \infty; \quad \rho(M) < 1 \Rightarrow M^L 
 - **最大特征值恒为 1**：$A\mathbf{1} = \mathbf{1}$（$\mathbf{1}$ 是全 1 向量，因为行和为 1）
 - 其余特征值 $|\lambda_i| \leq 1$
 
-**意义**：注意力作用在任何信号上，"直流分量"（平均）被保留，高频分量被衰减——**注意力有低通滤波特性**。
+**意义**：行随机矩阵可有多个模 1 特征值（如置换矩阵），特征模态与"频率"无一般对应；"低通"仅对局部平滑型注意力是经验事实，不能由行随机性推出。
 
 ### 2.2 注意力是低秩的
 
@@ -50,7 +50,7 @@ $$\rho(M) > 1 \Rightarrow \|M^L\| \to \infty; \quad \rho(M) < 1 \Rightarrow M^L 
    ▏▏▏▏▏▏▏▏▏▏▏▏   ← 多数 σ 很小, 近似低秩
 ```
 
-**应用**：Linear Attention、Performer 等用低秩近似把 $O(N^2)$ 复杂度降到 $O(N)$。
+**应用**：Linformer 等基于（近似）低秩投影把 $O(N^2)$ 复杂度降到 $O(N)$；Linear Attention 基于核函数与结合律、Performer 基于随机特征，同样绕开显式 $N \times N$ 注意力矩阵（三者机理不同，不都是"低秩近似"）。
 
 ### 2.3 谱坍缩问题
 
@@ -103,20 +103,31 @@ print("有效秩:", (S > 0.01 * S[0]).sum().item())
 ### 4.2 监控雅可比谱半径（近似）
 
 ```python
-# 近似估计网络某层雅可比的谱范数(用 power iteration)
-def spectral_norm_estimate(J_fn, x, iters=10):
-    u = torch.randn(x.shape); u = u / u.norm()
+import torch
+from torch.func import jvp
+from torch.autograd import grad
+
+# 幂迭代估计 f 在 x 处雅可比 J 的谱范数 σ_max = ‖J‖₂
+# u ← normalize(Jv)（前向模式 jvp）；v ← normalize(Jᵀu)（反向模式 VJP，autograd.grad）
+def spectral_norm_estimate(f, x, iters=50):
+    x0 = x.detach()
+    v = torch.randn_like(x0)
+    v = v / v.norm()
     for _ in range(iters):
-        v = J_fn(u); v = v / v.norm()
-        u = J_fn(v, transpose=True)
-    return v.norm()
+        u = jvp(f, (x0,), (v,))[1]                   # u = Jv
+        sigma = u.norm()                             # ‖Jv‖ → σ_max
+        u = u / sigma                                # u 归一化
+        leaf = x0.clone().requires_grad_(True)
+        (v,) = grad(f(leaf), leaf, grad_outputs=u)   # v = Jᵀu
+        v = v / v.norm()                             # v 归一化
+    return sigma
 ```
 
 ### 4.3 用谱归一化稳定训练
 
 ```python
 import torch.nn.utils.spectral_norm as sn
-# 对注意力或 FFN 用谱归一化, 强制 ‖W‖ ≤ τ
+# 对注意力或 FFN 用谱归一化, 归一化到 σ_max=1(默认无 τ 参数; 需 τ 时可再乘 scale)
 layer = sn(nn.Linear(512, 512))
 ```
 
@@ -188,9 +199,9 @@ A 常低秩 ⇒ 少数方向垄断信息 ⇒ 可低秩近似加速
 ## 八、延伸阅读
 
 ### 论文
-- **Dong et al. (2021)** "Attention is Not All You Need: Pure Attention Dies"——谱坍缩分析
-- **Choromanski et al. (2020)** "Performer"——低秩注意力近似
-- **Bjorck et al. (2021)** "Understanding Representation Collapse in Transformers"
+- **Dong et al. (2021)** "Attention is not all you need: pure attention loses rank doubly exponentially"（纯注意力秩双指数坍缩——谱坍缩分析）
+- **Choromanski et al. (2020)** "Performer"——随机特征注意力近似
+- **Jing et al. (2022)** "Understanding Dimensional Collapse in Contrastive Self-supervised Learning"——维度坍缩分析
 
 ### 关联文章
 - [[04-注意力机制的线性代数本质]]（注意力的矩阵结构）

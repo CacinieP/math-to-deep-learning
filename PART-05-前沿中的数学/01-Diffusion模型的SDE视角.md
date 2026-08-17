@@ -40,7 +40,7 @@ $$dx = -\theta x\,dt + \sigma\,dW_t$$
 
 $$dx = -\frac{1}{2}\beta(t) x\,dt + \sqrt{\beta(t)}\,dW_t$$
 
-其中 $\beta(t)$ 是噪声调度（控制加噪速度）。
+其中 $\beta(t)$ 是噪声调度（控制加噪速度）。这是 **VP-SDE**（方差保持）参数化；另一常见参数化是 **VE-SDE**：$dx = g(t)\,dW$，对应 score matching 的去噪解释——见 Song et al. 2021。
 
 **性质**：
 - 漂移项 $-\frac{1}{2}\beta(t) x$ 把信号拉向 0
@@ -68,6 +68,8 @@ $$x_t = \sqrt{\bar\alpha_t} x_0 + \sqrt{1-\bar\alpha_t}\,\epsilon, \quad \epsilo
 Anderson (1982) 证明：每个 SDE 都对应一个**反向 SDE**。前向 SDE 的反向：
 
 $$dx = \left[-f(x,t) + g(t)^2 \nabla_x \log p_t(x)\right]dt + g(t)\,d\bar W_t$$
+
+> 时钟约定：此处采用反向时间 $s = T - t$（$d\bar W_t$ 为反向 Wiener 过程）；换回正向时间 $t$ 时为 $\left[f(x,t) - g(t)^2 \nabla_x \log p_t(x)\right]dt$（Anderson 1982 / Song et al. 2021），与下文 4.1 概率流 ODE 的正向时间约定一致。
 
 **关键项**：$\nabla_x \log p_t(x)$——**分数函数**（score function），指向概率密度上升方向。
 
@@ -126,6 +128,8 @@ class Diffusion:
         self.T = T
         betas = torch.linspace(beta_start, beta_end, T)
         alphas = 1 - betas
+        self.betas = betas        # sample() 等处要用, 必须保存
+        self.alphas = alphas
         self.alpha_bars = torch.cumprod(alphas, dim=0)  # ᾱ_t
 
     def q_sample(self, x0, t, noise=None):

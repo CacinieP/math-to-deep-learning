@@ -27,7 +27,7 @@ $$e^{At} = I + At + \frac{(At)^2}{2!} + \frac{(At)^3}{3!} + \cdots = \sum_{k=0}^
 |------|------|
 | $e^{at}$ | $e^{At}$ |
 | $\frac{d}{dt}e^{at} = ae^{at}$ | $\frac{d}{dt}e^{At} = Ae^{At}$ |
-| $e^{a(t+s)} = e^{at}e^{as}$ | $e^{A(t+s)} = e^{At}e^{As}$（当 $A$ 可对角化时） |
+| $e^{a(t+s)} = e^{at}e^{as}$ | $e^{A(t+s)} = e^{At}e^{As}$（对同一矩阵 $A$ 无条件成立；需要可交换条件的是 $e^{A+B} = e^Ae^B \Leftrightarrow AB=BA$） |
 
 > 📖 微分方程解结构与线性代数的联系：[[Mathematics-Universe/03-高等数学/07-常微分方程/常微分方程详解.md]] 和 [[Mathematics-Universe/08-数学联系网络/跨分支深层联系.md#12-微分方程的解结构-线性代数的解结构]]
 
@@ -58,11 +58,11 @@ $$e^{At} = Pe^{\Lambda t}P^{-1} = P\text{diag}(e^{\lambda_1 t}, \ldots, e^{\lamb
 $$|\lambda I - A| = \begin{vmatrix} \lambda & -1 \\ 2 & \lambda+3 \end{vmatrix} = \lambda^2 + 3\lambda + 2 = (\lambda+1)(\lambda+2)$$
 $$\lambda_1 = -1, \lambda_2 = -2$$
 
-**Step 2**：特征向量
-- $\lambda_1 = -1$：$\mathbf{v}_1 = \begin{pmatrix} 1 \\ 1 \end{pmatrix}$
-- $\lambda_2 = -2$：$\mathbf{v}_2 = \begin{pmatrix} 1 \\ 2 \end{pmatrix}$
+**Step 2**：特征向量（代入验证 $A\mathbf{v} = \lambda\mathbf{v}$）
+- $\lambda_1 = -1$：$A\begin{pmatrix} 1 \\ -1 \end{pmatrix} = \begin{pmatrix} -1 \\ 1 \end{pmatrix} = (-1)\cdot\begin{pmatrix} 1 \\ -1 \end{pmatrix}$，故 $\mathbf{v}_1 = \begin{pmatrix} 1 \\ -1 \end{pmatrix}$
+- $\lambda_2 = -2$：$A\begin{pmatrix} 1 \\ -2 \end{pmatrix} = \begin{pmatrix} -2 \\ 4 \end{pmatrix} = (-2)\cdot\begin{pmatrix} 1 \\ -2 \end{pmatrix}$，故 $\mathbf{v}_2 = \begin{pmatrix} 1 \\ -2 \end{pmatrix}$
 
-**Step 3**：$P = \begin{pmatrix} 1 & 1 \\ 1 & 2 \end{pmatrix}$, $P^{-1} = \begin{pmatrix} 2 & -1 \\ -1 & 1 \end{pmatrix}$
+**Step 3**：$P = \begin{pmatrix} 1 & 1 \\ -1 & -2 \end{pmatrix}$, $P^{-1} = \begin{pmatrix} 2 & 1 \\ -1 & -1 \end{pmatrix}$
 
 **Step 4**：
 $$e^{At} = P\begin{pmatrix} e^{-t} & 0 \\ 0 & e^{-2t} \end{pmatrix}P^{-1} = \begin{pmatrix} 2e^{-t}-e^{-2t} & e^{-t}-e^{-2t} \\ -2e^{-t}+2e^{-2t} & -e^{-t}+2e^{-2t} \end{pmatrix}$$
@@ -221,25 +221,26 @@ for x, y in train_loader:
 **自适应求解器的优势**：不需要预先设定步长。在"容易变化"的区域用大步长，在"快速变化"的区域自动缩小步长。
 
 ```python
-# dopri5 的步长自适应逻辑（简化版）
-def adaptive_rk45(f, h, t, y):
-    """
-    自适应步长：每一步估计误差，误差大就减半步长
-    """
-    # 计算5阶和4阶两个估计
+# 步长自适应的核心逻辑（以"同阶两步比较"简化演示；dopri5 用 5/4 阶嵌套估计）
+import torch
+
+def rk4_step(f, t, y, h):
     k1 = f(t, y)
-    k2 = f(t + h/5, y + h*k1/5)
-    # ... 更多中间步
-    y_5th = y + h * weighted_sum_of_ks_5th  # 5阶估计
-    y_4th = y + h * weighted_sum_of_ks_4th  # 4阶估计
+    k2 = f(t + h/2, y + h*k1/2)
+    k3 = f(t + h/2, y + h*k2/2)
+    k4 = f(t + h, y + h*k3)
+    return y + h*(k1 + 2*k2 + 2*k3 + k4)/6
 
-    # 误差估计
-    error = ||y_5th - y_4th||
-
-    if error < tolerance:
-        return y_5th, h * 1.2  # 成功，增加步长
+def adaptive_step(f, t, y, h, tol=1e-4):
+    y_h  = rk4_step(f, t, y, h)          # 一步 h
+    y_h2 = rk4_step(f, t + h/2, rk4_step(f, t, y, h/2), h/2)  # 两步 h/2（更精确）
+    error = (y_h - y_h2).abs().max()      # 误差估计
+    if error < tol:
+        return y_h2, h * 1.2              # 成功，放大步长
     else:
-        return adaptive_rk45(f, h/2, t, y)  # 失败，减半步长重试
+        return adaptive_step(f, t, y, h/2, tol)  # 失败，减半步长重试
+
+# 真实的 dopri5（torchdiffeq 默认）：用 5 阶与 4 阶两个嵌套估计之差做同样的误差控制
 ```
 
 ---
@@ -314,11 +315,9 @@ Neural ODE 在 ImageNet 上：
 # 不规则时间序列：在每个观测时间点查询状态
 observation_times = torch.tensor([0.0, 0.3, 1.2, 3.5, 7.0])  # 不均匀采样
 
-# 一次性积分整个轨迹
-full_trajectory = odeint(func, x0, torch.linspace(0, 7, 100))
-
-# 在观测时间点提取（不需要插值！）
-observed = full_trajectory[observation_times * 100 / 7]  # 索引映射
+# 直接把观测时间点作为积分节点传给 odeint，
+# 返回值即为各观测时刻的状态（不需要插值！）
+observed = odeint(func, x0, observation_times)  # (len(observation_times), ...)
 ```
 
 ### 5.3 生成模型：CNF（连续归一化流）
@@ -327,7 +326,7 @@ Neural ODE 的一个变种——**连续归一化流**：
 
 $$\frac{d\mathbf{z}}{dt} = f(\mathbf{z}(t), t)$$
 
-关键差异：$f$ 依赖于**时间本身**（而不仅是状态），这保证了变换是可逆的。
+关键差异：$f$ 可以显式依赖**时间本身** $t$（而不仅是状态）。变换的可逆性来自 ODE 解的存在唯一性（$f$ 关于 $\mathbf{z}$ 满足 Lipschitz 条件）；$f$ 是否显式依赖 $t$ 与可逆性无关。
 
 $$\log p(\mathbf{z}(t_1)) = \log p(\mathbf{z}(t_0)) - \int_{t_0}^{t_1} \nabla \cdot f(\mathbf{z}(t), t) \, dt$$
 
@@ -412,7 +411,7 @@ $$\log p(\mathbf{z}(t_1)) = \log p(\mathbf{z}(t_0)) - \int_{t_0}^{t_1} \nabla \c
 - [torchdyn](https://github.com/DiffEqML/torchdyn) — 连续深度模型完整工具包
 
 ### 课程
-- [CS229T 连续深度模型](https://cs229t.stanford.edu/) — Stanford 的连续时间模型专题
+- [CS229T: Trustworthy ML](https://cs229t.stanford.edu/) — Stanford 的可信机器学习（Trustworthy ML）专题
 - [NeurIPS 2018 教程](https://slideslive.com/neurips-2018) — Neural ODE 作者本人的教程
 
 ### 关联文章

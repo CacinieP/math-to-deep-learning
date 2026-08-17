@@ -43,22 +43,47 @@ $$A^TA \text{ 的特征向量} = V \text{ 的列（右奇异向量）}$$
 $$AA^T \text{ 的特征向量} = U \text{的列（左奇异向量）}$$
 $$\text{奇异值 } \sigma_i = \sqrt{\lambda_i(A^TA)}$$
 
-**关键洞察**：SVD 的奇异值 = 特征值分解后开方。所以 SVD 的稳定性比特征值分解更好（开方是单调函数，不改变大小顺序）。
+**关键洞察**：SVD 的奇异值 = $A^TA$ 特征值开方。数值上更推荐 SVD 的真正原因：奇异值对扰动的敏感度有理论界（Weyl 定理等），而非正规矩阵的特征值扰动可能极端病态——这才是数值上更推荐 SVD 的原因。
 
 ### 1.4 手动计算示例
 
 设 $A = \begin{pmatrix} 1 & 1 \\ 0 & 1 \\ -1 & 1 \end{pmatrix}$（$3 \times 2$ 矩阵）
 
-**Step 1**：$A^TA = \begin{pmatrix} 2 & 0 \\ 0 & 2 \end{pmatrix}$
+**Step 1**：$A^TA = \begin{pmatrix} 2 & 0 \\ 0 & 3 \end{pmatrix}$（第 1 列自内积 $1^2+0^2+(-1)^2=2$，第 2 列自内积 $1^2+1^2+1^2=3$，两列互相内积 $1+0-1=0$）
 
-**Step 2**：特征值 $\lambda_1 = 2, \lambda_2 = 2$，奇异值 $\sigma_1 = \sqrt{2}, \sigma_2 = \sqrt{2}$
+**Step 2**：特征值 $\lambda_1 = 2, \lambda_2 = 3$，奇异值 $\sigma_1 = \sqrt{2}, \sigma_2 = \sqrt{3}$
 
-**Step 3**：$V = \begin{pmatrix} 1 & 0 \\ 0 & 1 \end{pmatrix}$（因为 $A^TA = 2I$）
+**Step 3**：$A^TA$ 已是对角阵，特征向量就是标准基：$v_1 = e_1 = \begin{pmatrix} 1 \\ 0 \end{pmatrix}$（对应 $\lambda=2$），$v_2 = e_2 = \begin{pmatrix} 0 \\ 1 \end{pmatrix}$（对应 $\lambda=3$），即 $V = \begin{pmatrix} 1 & 0 \\ 0 & 1 \end{pmatrix}$
 
-**Step 4**：$U = AV\Sigma^{-1} = \frac{1}{\sqrt{2}}\begin{pmatrix} 1 & 0 \\ 0 & 1 \\ 1 & 1 \end{pmatrix}$（第二列需要Gram-Schmidt正交化补全）
+**Step 4**：$u_i = Av_i/\sigma_i$：
+$$u_1 = \frac{Ae_1}{\sqrt{2}} = \frac{1}{\sqrt{2}}\begin{pmatrix} 1 \\ 0 \\ -1 \end{pmatrix}, \quad u_2 = \frac{Ae_2}{\sqrt{3}} = \frac{1}{\sqrt{3}}\begin{pmatrix} 1 \\ 1 \\ 1 \end{pmatrix}$$
 
-**SVD**：
-$$A = \frac{1}{\sqrt{2}}\begin{pmatrix} 1 & 0 & 0 \\ 0 & 1 & 1 \\ 1 & 1 & 0 \end{pmatrix} \begin{pmatrix} \sqrt{2} & 0 \\ 0 & \sqrt{2} \\ 0 & 0 \end{pmatrix} \begin{pmatrix} 1 & 0 \\ 0 & 1 \end{pmatrix}$$
+（$A$ 的两列线性无关，列空间恰为 2 维，这 2 个左奇异向量已经够用，无需再补第 3 列。）
+
+**SVD**（用 $m\times 2$ 的"瘦（thin）"形式，$\Sigma$ 取 $2\times 2$ 对角阵）：
+$$A = \underbrace{\begin{pmatrix} 1/\sqrt{2} & 1/\sqrt{3} \\ 0 & 1/\sqrt{3} \\ -1/\sqrt{2} & 1/\sqrt{3} \end{pmatrix}}_{U_{3\times 2}} \underbrace{\begin{pmatrix} \sqrt{2} & 0 \\ 0 & \sqrt{3} \end{pmatrix}}_{\Sigma_{2\times 2}} \underbrace{\begin{pmatrix} 1 & 0 \\ 0 & 1 \end{pmatrix}}_{V^T}$$
+
+（若按惯例把奇异值降序排列，则 $\sigma_1 = \sqrt{3}$、$\sigma_2 = \sqrt{2}$，把上式各块的列相应对调即可。满 $3\times 3$ 形式需给 $\Sigma$ 补零行、给 $U$ 补一个与前两列正交的第三列，结果相同。）
+
+**数值验证**：
+
+```python
+import numpy as np
+A = np.array([[1, 1], [0, 1], [-1, 1]], dtype=float)
+U = np.array([[1/np.sqrt(2), 1/np.sqrt(3)],
+              [0,            1/np.sqrt(3)],
+              [-1/np.sqrt(2), 1/np.sqrt(3)]])
+Sigma = np.array([[np.sqrt(2), 0], [0, np.sqrt(3)]])   # 2x2 瘦形式，与 3x2 的 U 匹配
+V = np.eye(2)
+print(np.max(np.abs(U @ Sigma @ V.T - A)))  # 0.0 —— 精确重构 A
+print(np.max(np.abs(U.T @ U - np.eye(2))))  # 0.0 —— U 列正交
+```
+
+**低秩截断示例**：只保留最大的奇异值 $\sqrt{3}$（对应 $v_2 = e_2$，$u_2 = (1,1,1)/\sqrt{3}$）：
+
+$$A \approx \sqrt{3}\, u_2 v_2^T = \begin{pmatrix} 0 & 1 \\ 0 & 1 \\ 0 & 1 \end{pmatrix}$$
+
+误差恰好为 $\|A - A_1\|_F = \sqrt{2} = \sigma_2$——这正是 Eckart-Young 定理：最优秩 1 近似的 Frobenius 误差就是被丢弃的最大奇异值。
 
 ---
 
@@ -154,15 +179,16 @@ def matrix_factorization(R, k=10, lr=0.01, epochs=1000, mask=None):
         # L2 正则（防止过拟合）
         loss += 0.01 * (P ** 2).sum() + 0.01 * (Q ** 2).sum()
 
-        # 梯度下降
-        P_grad = -2 * error @ Q + 0.02 * P       # (m, k)
-        Q_grad = -2 * error.T @ P + 0.02 * Q     # (n, k)
+        # 梯度下降（与上方 loss 同口径：误差项同样除以 mask.sum()）
+        P_grad = -2 * (error @ Q) / mask.sum() + 0.02 * P       # (m, k)
+        Q_grad = -2 * (error.T @ P) / mask.sum() + 0.02 * Q     # (n, k)
 
         P -= lr * P_grad
         Q -= lr * Q_grad
 
         if epoch % 200 == 0:
-            print(f"Epoch {epoch}: RMSE = {(loss / mask.sum()).sqrt():.3f}")
+            rmse = ((error ** 2).sum() / mask.sum()).sqrt()  # 仅对预测误差，不含正则项
+            print(f"Epoch {epoch}: RMSE = {rmse:.3f}")
 
     return P, Q
 
@@ -342,7 +368,7 @@ S = torch.tensor([10.0, 5.0, 3.0, 1.0, 0.5, 0.3, 0.1])
 energy = singular_value_energy(S)
 for i, e in enumerate(energy):
     print(f"前 {i+1} 个奇异值保留 {e:.1%} 信息")
-# 前2个保留 ~88%，前4个保留 ~98%
+# 前2个保留 ~92.4%，前4个保留 ~99.7%
 ```
 
 ### 5.2 奇异值的数值稳定性
@@ -357,8 +383,8 @@ for i, e in enumerate(energy):
 |------|-----------|-----|
 | 矩阵要求 | 方阵（通常对称） | 任意 $m \times n$ |
 | 特征值/奇异值 | 可能复数 | 总是非负实数 |
-| 排序稳定性 | 特征向量可能翻转 | 奇异值唯一（符号约定下） |
-| 条件数 | $\kappa(A) = \|\lambda_{\max}\|/\|\lambda_{\min}\|$ | $\kappa(A) = \sigma_{\max}/\sigma_{\min}$ |
+| 排序稳定性 | 特征向量可能翻转 | 奇异值总唯一（重数意义下）；不唯一的是奇异向量（列符号可变） |
+| 条件数 | $\kappa(A) = \|\lambda_{\max}\|/\|\lambda_{\min}\|$（仅对正规矩阵成立）；一般矩阵的 2-范数条件数应取 $\sigma_{\max}/\sigma_{\min}$ | $\kappa(A) = \sigma_{\max}/\sigma_{\min}$ |
 
 > 📖 数值稳定性背景：[[Mathematics-Universe/06-超纲拓展/数值分析.md]]
 
@@ -442,6 +468,6 @@ SVD:            A = UΣV^T          ← A 可以是任意形状
 
 ↔ 横联: [[特征值分解 → PCA → 自编码器]]（轴线A上一篇，SVD是PCA的推广）
 
-🔗 跨域: 推荐系统（Netflix/Amazon/Spotify），NLP（LSA词嵌入），图像处理（图像压缩JPEG本质是SVD），生物信息学（基因表达数据降维）
+🔗 跨域: 推荐系统（Netflix/Amazon/Spotify），NLP（LSA词嵌入），图像处理（图像压缩：JPEG 压缩基于 8×8 DCT 变换+量化，并非 SVD；但 SVD 低秩截断是另一种经典的图像压缩思路，上文演示的即是），生物信息学（基因表达数据降维）
 
 ━━━━━━━━━━━━━━

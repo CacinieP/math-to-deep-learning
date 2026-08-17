@@ -49,7 +49,7 @@ $$\overline{\text{span}\{1, x, x^2, \ldots\}} = C[a,b]$$
 
 ### 2.1 通用近似定理（Cybenko, 1989）
 
-设 $\sigma$ 是**有界、非常数、单调递增**的连续函数（如 sigmoid）。则函数族：
+设 $\sigma$ 是 sigmoidal 函数（Cybenko 1989 的 sigmoidal 条件；Hornik 1989/1991 证明有界非常数激活即可，如 sigmoid）。则函数族：
 
 $$\mathcal{F} = \left\{ g(x) = \sum_{i=1}^N \alpha_i \sigma(w_i^\top x + b_i) : N \in \mathbb{N}, \alpha_i \in \mathbb{R}, w_i \in \mathbb{R}^d, b_i \in \mathbb{R} \right\}$$
 
@@ -75,7 +75,7 @@ Cybenko 的证明用了**泛函分析的对偶论证**：
 ### 2.3 多元与多层的推广
 
 - **Hornik (1991)**：定理对任意可测函数也成立（不只是连续），且与激活函数具体形式关系不大
-- **多层版本**：深度网络能用**指数级更少**的单元达到单层的逼近精度（见 [Telgarani, 2016] 等）
+- **多层版本**：深度网络能用**指数级更少**的单元达到单层的逼近精度（见 [Telgarsky, 2016] 等）
 
 ---
 
@@ -129,23 +129,37 @@ for _ in range(3000):
 ### 4.2 观察宽度的效果
 
 ```python
+import torch
+import torch.nn as nn
+
+def fit_sine(width, steps=3000):
+    model = nn.Sequential(nn.Linear(1, width), nn.ReLU(), nn.Linear(width, 1))
+    opt = torch.optim.Adam(model.parameters(), lr=1e-2)
+    x = torch.linspace(-torch.pi, torch.pi, 200).unsqueeze(1)
+    y = torch.sin(x)
+    for _ in range(steps):
+        loss = ((model(x) - y) ** 2).mean()
+        opt.zero_grad(); loss.backward(); opt.step()
+    return model, loss.item()
+
 for width in [4, 16, 64, 256]:
-    # 训练后画拟合曲线
-    # width=4: 棱角分明, 欠拟合
-    # width=256: 几乎与 sin 重合
+    _, mse = fit_sine(width)
+    print(f"width={width:3d}  final MSE={mse:.5f}")
+# width=4:  棱角分明, 欠拟合（MSE 明显偏大）
+# width=256: 几乎与 sin 重合（MSE 接近 0）
 ```
 
 ### 4.3 深度 vs 宽度的实验
 
 ```python
-# 同样参数量: 浅宽 vs 深窄
-shallow = nn.Sequential(nn.Linear(1, 256), nn.ReLU(), nn.Linear(256, 1))   # 2 层, 256 宽
+# 浅宽 vs 深窄（注意：两者参数量并不相同）
+shallow = nn.Sequential(nn.Linear(1, 256), nn.ReLU(), nn.Linear(256, 1))   # 2 层, 256 宽, 769 参数
 deep    = nn.Sequential(nn.Linear(1, 32), nn.ReLU(),
                         nn.Linear(32, 32), nn.ReLU(),
                         nn.Linear(32, 32), nn.ReLU(),
                         nn.Linear(32, 32), nn.ReLU(),
-                        nn.Linear(32, 1))                                   # 5 层, 32 宽
-# 参数量相近, 深网络通常拟合更复杂的函数更省力
+                        nn.Linear(32, 1))                                   # 5 层, 32 宽, 3265 参数
+# 浅宽 769 参数 vs 深窄 3265 参数——深度省参数的代价是优化更难
 ```
 
 ---

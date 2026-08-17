@@ -42,7 +42,7 @@ $$\max_f I(Z_1; Z_2), \quad Z_1 = f(\text{aug}_1(X)), \ Z_2 = f(\text{aug}_2(X))
 
 直接算 $I$ 不可行（需要联合分布）。对比学习用**噪声对比估计**给互信息下界：
 
-$$\mathcal{L}_{\text{NCE}} = -\mathbb{E}\!\left[\log \frac{e^{s(z_1, z_2^+)/\tau}}{\sum_{z^-} e^{s(z_1, z^-)/\tau}}\right]$$
+$$\mathcal{L}_{\text{NCE}} = -\mathbb{E}\!\left[\log \frac{e^{s(z_1, z_2^+)/\tau}}{e^{s(z_1, z_2^+)/\tau} + \sum_{z^-} e^{s(z_1, z^-)/\tau}}\right]$$
 
 - $z_2^+$：正样本（同图另一增强）
 - $z^-$：负样本（其他图）

@@ -134,6 +134,8 @@ class BatchNorm1d:
             var = x.var(0, unbiased=False)
             with torch.no_grad():
                 self.running_mean = (1-self.momentum)*self.running_mean + self.momentum*mean
+                # 注意：PyTorch 归一化用有偏方差、running_var 更新用无偏（n/(n−1) 修正）；
+                # 本教学实现两者均用有偏，数值上略有差异
                 self.running_var  = (1-self.momentum)*self.running_var  + self.momentum*var
         else:
             mean, var = self.running_mean, self.running_var

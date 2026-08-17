@@ -109,12 +109,12 @@ MSE:   loss = (y_pred - y_true)^2
 
 模型输出：
 - 类别 1 概率 = 0.99
-- MSE = 0.002
+- MSE = 0.0002
 - 交叉熵 = $-\log(0.99) \approx 0.010$
 
-**MSE 对"已经很确定"的改进不敏感**：
-- 从 0.9 → 0.99，MSE 减少了 90%（0.02 → 0.002）
-- 但从 0.9 → 0.99，交叉熵只减少了约 52%（0.105 → 0.010）
+**MSE 的损失值在"已经很确定"时平方级趋零**：
+- 从 0.9 → 0.99，MSE 减少了 99%（0.02 → 0.0002），损失几乎归零
+- 但从 0.9 → 0.99，交叉熵只减少了约 90%（0.105 → 0.010），损失仍保留可观的量级
 
 **等等，这不是说 MSE 更好吗？** 不——问题在于梯度：
 
@@ -123,8 +123,9 @@ MSE:   loss = (y_pred - y_true)^2
 # dL/dz_c = softmax(z)_c - 1_{c=y_true}
 grad_ce = probs - one_hot  # (batch, C)
 
-# MSE 的梯度（对 logits，经过 softmax 的 chain rule）
-# dL/dz = (softmax(z) - one_hot) ⊙ softmax(z) ⊙ (1 - softmax(z))
+# MSE 的梯度（独立 sigmoid 输出情形：各输出概率相互独立，非 softmax 耦合）
+# dL/dz = (p - one_hot) ⊙ p ⊙ (1 - p)
+# 注：softmax 耦合输出下梯度不同，还需减去 p ⊙ Σ_k(p_k - t_k)p_k 项
 grad_mse = (probs - one_hot) * probs * (1 - probs)  # (batch, C)
 ```
 
@@ -266,7 +267,7 @@ loss = F.binary_cross_entropy_with_logits(logits, targets)
 
 ### 代码
 - [PyTorch `F.cross_entropy`](https://pytorch.org/docs/stable/generated/torch.nn.functional.cross_entropy.html) — 合并 softmax + NLL + label smoothing
-- [PyTorch `F.cross_entropy_with_logits`](https://pytorch.org/docs/stable/generated/torch.nn.functional.binary_cross_entropy_with_logits.html) — 二分类的数值稳定版本
+- [PyTorch `F.binary_cross_entropy_with_logits`](https://pytorch.org/docs/stable/generated/torch.nn.functional.binary_cross_entropy_with_logits.html) — 二分类的数值稳定版本
 
 ### 关联文章
 - [[Bayes 定理 → 贝叶斯神经网络]]（轴线B上一篇）

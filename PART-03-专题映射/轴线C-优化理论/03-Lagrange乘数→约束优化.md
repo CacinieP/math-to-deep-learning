@@ -38,8 +38,8 @@ $$\min_{\mathbf{x}} f(\mathbf{x}) \quad \text{s.t.} \quad g(\mathbf{x}) = 0$$
 
 ### 1.2 Lagrange 乘数法
 
-**构造 Lagrange 函数**：
-$$\mathcal{L}(\mathbf{x}, \lambda) = f(\mathbf{x}) - \lambda g(\mathbf{x})$$
+**构造 Lagrange 函数**（全文统一采用 $\mathcal{L} = f + \lambda g$ 的符号约定）：
+$$\mathcal{L}(\mathbf{x}, \lambda) = f(\mathbf{x}) + \lambda g(\mathbf{x})$$
 
 其中 $\lambda$ 是 **Lagrange 乘数**。
 
@@ -47,7 +47,7 @@ $$\mathcal{L}(\mathbf{x}, \lambda) = f(\mathbf{x}) - \lambda g(\mathbf{x})$$
 $$\frac{\partial \mathcal{L}}{\partial \mathbf{x}} = 0, \quad \frac{\partial \mathcal{L}}{\partial \lambda} = 0$$
 
 展开：
-$$\nabla f(\mathbf{x}^*) = \lambda \nabla g(\mathbf{x}^*)$$
+$$\nabla f(\mathbf{x}^*) = -\lambda \nabla g(\mathbf{x}^*)$$
 
 **几何含义**：在约束的极值点处，目标函数的梯度**平行于**约束的梯度。
 
@@ -91,7 +91,7 @@ $$\max_D \left[ \mathbb{E}_x[\log D(x)] + \mathbb{E}_z[\log(1 - D(G(z)))] \right
 
 固定 $G$，求使 $V$ 最大的 $D^*$：
 
-$$\frac{\partial V}{\partial D} = \frac{\mathbb{E}_x}{D(x)} - \frac{\mathbb{E}_z}{1 - D(G(z))} = 0$$
+$$\frac{\partial V}{\partial D} = \frac{p_{\text{data}}(x)}{D(x)} - \frac{p_G(x)}{1 - D(x)} = 0$$
 
 解得：
 $$D^*(x) = \frac{p_{\text{data}}(x)}{p_{\text{data}}(x) + p_G(x)}$$
@@ -105,9 +105,9 @@ $$D^*(x) = \frac{p_{\text{data}}(x)}{p_{\text{data}}(x) + p_G(x)}$$
 $$V(G, D^*) = \mathbb{E}_x\left[\log\frac{p_{\text{data}}(x)}{p_{\text{data}}(x) + p_G(x)}\right] + \mathbb{E}_z\left[\log\frac{p_G(x)}{p_{\text{data}}(x) + p_G(x)}\right]$$
 
 这等价于：
-$$V(G, D^*) = -2\log 2 + D_{JS}(p_{\text{data}} \| p_G)$$
+$$V(G, D^*) = -2\log 2 + 2\, D_{JS}(p_{\text{data}} \| p_G)$$
 
-其中 $D_{JS}$ 是 **Jensen-Shannon 散度**。
+其中 $D_{JS}$ 是 **Jensen-Shannon 散度**（按 $\frac{1}{2}D_{KL}(p\|m) + \frac{1}{2}D_{KL}(q\|m)$、$m=\frac{p+q}{2}$ 的 ½ 加权标准定义，系数 2 由此而来）。
 
 **全局最优**：当 $p_G = p_{\text{data}}$ 时，$D_{JS} = 0$，$V = -2\log 2$。
 
@@ -160,15 +160,16 @@ $$\max_\pi \mathbb{E}[R(\pi)] \quad \text{s.t.} \quad \mathbb{E}[C_i(\pi)] \leq 
 
 ### 3.2 Lagrange 方法在 RL 中的应用
 
-构造 Lagrange 函数：
-$$\mathcal{L}(\pi, \lambda) = \mathbb{E}[R(\pi)] + \sum_i \lambda_i(b_i - \mathbb{E}[C_i(\pi)])$$
+将目标改写为最小化 $-\mathbb{E}[R(\pi)]$，约束写成 $g_i(\pi) = \mathbb{E}[C_i(\pi)] - b_i \leq 0$（与上文 $\mathcal{L} = f + \lambda g$ 约定一致），构造 Lagrange 函数：
+
+$$\mathcal{L}(\pi, \lambda) = -\mathbb{E}[R(\pi)] + \sum_i \lambda_i \left(\mathbb{E}[C_i(\pi)] - b_i\right)$$
 
 **内层优化策略 $\pi$**，**外层调整 Lagrange 乘数 $\lambda$**：
 
 ```
-外循环: λ ← λ + η(b - E[C(π)])   （更新乘数，惩罚超约束）
+外循环: λ ← λ + η(E[C(π)] − b)，并截断 λ ≥ 0   （约束被违反时 λ 增大）
     ↓
-内循环: π ← argmax E[R(π)] - Σ λᵢE[Cᵢ(π)]   （带惩罚的RL优化）
+内循环: π ← argmax E[R(π)] − Σ λᵢE[Cᵢ(π)]   （带惩罚的RL优化，等价于最小化上式）
     ↓
         λ 是"价格"——约束的违反程度乘以价格
         π 在"奖励 - 价格×代价"的框架下学习
@@ -221,10 +222,10 @@ $$\mathcal{L} = -\mathbb{E}\left[\log\frac{e^{f(x_i)^T f(x_j)/\tau}}{\sum_{k=1}^
 这等价于最小化：
 $$\mathcal{L} = \mathbb{E}[\log N] - \mathbb{E}[\log e^{f(x_i)^T f(x_j)/\tau}]$$
 
-从信息论角度：
-$$\mathcal{L} = \log N - I(x; z)$$
+从信息论角度：在最优判别器（打分函数）极限下，
+$$\mathcal{L} \approx \log N - I(x; z)$$
 
-其中 $I(x; z)$ 是输入和表示之间的互信息。
+其中 $I(x; z)$ 是输入和表示之间的互信息；一般情形下 InfoNCE 给出的是 $I(x; z)$ 的下界（Oord et al. 2018），上式并非严格等式。
 
 **最大化互信息 $I(x; z)$ 等价于最小化 $\mathcal{L}$**。
 
@@ -232,7 +233,7 @@ $$\mathcal{L} = \log N - I(x; z)$$
 - 我们想最大化 $I(x; z)$
 - 但 $I(x; z)$ 无法直接计算
 - InfoNCE 是互信息的**下界估计**（NCE = Noise Contrastive Estimation）
-- 最大化下界 = 在 Lagrange 框架下的凸近似
+- 最大化下界 = 用可优化的代理目标逼近互信息最大化（InfoNCE 是 $I$ 的下界最大化方法；与 Lagrange 框架、凸性均无关）
 
 ### 4.2 对比损失中的"约束"
 
@@ -275,7 +276,7 @@ def triplet_loss(anchor, positive, negative, margin=0.2):
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  纯数学                                                          │
-│  Lagrange 函数: L(x,λ) = f(x) - λ·g(x)                         │
+│  Lagrange 函数: L(x,λ) = f(x) + λ·g(x)                         │
 │  KKT 条件: 可行性 + 梯度=0 + 对偶可行 + 互补松弛                  │
 │  [[Mathematics-Universe/03-高等数学/04-多元微分学/...]]          │
 └────────────────────────────┬────────────────────────────────────┘
@@ -284,7 +285,7 @@ def triplet_loss(anchor, positive, negative, margin=0.2):
 ┌─────────────────────────────────────────────────────────────────┐
 │  约束优化通用框架                                                  │
 │  min_θ L(θ) s.t. C_i(θ) ≤ b_i                                   │
-│  L(θ,λ) = L_task(θ) + Σ λᵢ(bᵢ - Cᵢ(θ))                        │
+│  L(θ,λ) = L_task(θ) + Σ λᵢ(Cᵢ(θ) − bᵢ)                        │
 │  交替优化: θ（梯度下降）+ λ（乘数更新）                           │
 └────────────────────────────┬────────────────────────────────────┘
                              │
@@ -308,7 +309,7 @@ def triplet_loss(anchor, positive, negative, margin=0.2):
                 ↓ 加约束
 约束优化:   min f(x) s.t. g(x) = 0
                 ↓ Lagrange 变换
-Lagrange:   min f(x) - λ·g(x)
+Lagrange:   min f(x) + λ·g(x)
                 ↓ 交替优化
 交替:       x ← 最小化 L(x, λ)
             λ ← 最大化 L(x, λ)  （增大对约束违反的惩罚）
@@ -330,7 +331,7 @@ Lagrange:   min f(x) - λ·g(x)
 - **GAN 理论**：Goodfellow et al. (2014) — 原始 GAN 论文的定理 1（全局最优）
 - **Constrained RL**：Achiam et al. (2017) "Constrained Policy Optimization"
 - **对比学习**：Chen et al. (2020) "A Simple Framework for Contrastive Learning"
-- **Lagrangian RL 综述**：Ray et al. (2022) "Reinforcement Learning with Constraints"
+- **安全 RL 综述**：García & Fernández (2015) "A Comprehensive Survey on Safe Reinforcement Learning"
 
 ### 课程
 - [CS229: Constrained Optimization](https://cs229.stanford.edu/) — Lagrange / KKT 条件
