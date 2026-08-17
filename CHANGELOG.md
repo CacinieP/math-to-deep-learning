@@ -4,7 +4,9 @@
 
 ## [2026-08-17] 全量内容审核与修复（约 110 处）
 
-依据对全部 38 篇正文的逐篇审核（公式/代码/事实核查 + 数值验证），修复内容与基建问题：
+依据对全部 38 篇正文的逐篇审核（公式/代码/事实核查 + 数值验证），修复内容与基建问题。
+
+> 📋 完整审核报告（覆盖本仓库与 [Mathematics-Universe](https://github.com/CacinieP/Mathematics-Universe) 两仓库）：[Mathematics-Universe/docs/审核报告-2026-08-17.md](https://github.com/CacinieP/Mathematics-Universe/blob/main/docs/审核报告-2026-08-17.md)
 
 ### 基建
 - **补齐 LICENSE**：此前仓库无 LICENSE 文件（GitHub license 检测为空），现为官方 CC BY-SA 4.0 全文，与 README/CONTRIBUTING 声明一致
