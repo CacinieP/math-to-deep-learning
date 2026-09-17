@@ -1,6 +1,6 @@
 # 特征值分解 → PCA → 自编码器
 
-> 同一个数学操作——对矩阵做谱分解——从纸笔推导（考研线代）到数据降维（PCA）再到神经网络训练（自编码器），本质完全不变，只是"谁在做"和"为什么做"在变。
+> 同一个数学操作——对矩阵做谱分解——从纸笔推导（考研线代）到数据降维（PCA）再到神经网络训练（自编码器），可以建立联系；严格的等价只在线性自编码器与 PCA 的特定条件下成立。
 
 **难度**：[标准]（需要线性代数基础 + 能写简单PyTorch）
 
@@ -18,7 +18,7 @@ $$A = Q\Lambda Q^T$$
 
 **几何意义**：$A$ 是一个线性变换。特征向量是这个变换的"不动方向"——变换只改变长度（按 $\lambda_i$ 缩放），不改变方向。
 
-> 📖 详细推导与性质：[[Mathematics-Universe/04-线性代数/05-特征值与特征向量/特征值与特征向量详解.md]]
+> 📖 详细推导与性质：[特征值与特征向量详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/04-线性代数/05-特征值与特征向量/特征值与特征向量详解.md)
 
 ### 1.2 关键性质
 
@@ -78,7 +78,7 @@ $$X_{\text{reduced}} = XQ_k \quad (Q_k \text{ 是前 } k \text{ 个特征向量�
 
 **保留前 $k$ 个主成分 = 保留最大的 $k$ 个特征值对应的方向**。
 
-> 📖 深入理解：[[Mathematics-Universe/04-线性代数/05-特征值与特征向量/特征值与特征向量详解.md#52-重要性质]] 和 [[Mathematics-Universe/05-概率论与数理统计/04-数字特征/数字特征详解.md#33-协方差与相关系数]]
+> 📖 深入理解：[特征值与特征向量详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/04-线性代数/线性代数全貌.md#52-重要性质) 和 [数字特征详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/05-概率论与数理统计/04-数字特征/数字特征详解.md#三协方差与相关系数)
 
 ### 2.3 PCA 的数学目标
 
@@ -92,7 +92,7 @@ $$\frac{\partial\mathcal{L}}{\partial\mathbf{q}} = 2\Sigma\mathbf{q} - 2\lambda\
 
 **结论**：PCA 的第一主成分就是协方差矩阵的最大特征值对应的特征向量。
 
-这直接来自 [[Mathematics-Universe/03-高等数学/04-多元微分学/多元微分学详解.md#45-条件极值与Lagrange乘数法]]。
+这直接来自 [多元微分学详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/03-高等数学/04-多元微分学/多元微分学详解.md#32-条件极值lagrange乘数法)。
 
 ### 2.4 手写 PCA
 
@@ -181,16 +181,16 @@ $$\mathcal{L} = \|X - g_\phi(f_\theta(X))\|^2$$
 
 | PCA | 自编码器（线性编码器+线性解码器） |
 |-----|-------------------------------|
-| $Z = XQ_k$（线性投影） | $Z = W_{\text{enc}}X$（线性层） |
-| $\hat{X} = ZQ_k^T$（线性重构） | $\hat{X} = W_{\text{dec}}Z$（线性层） |
-| 目标：$\min\|X - XQ_kQ_k^T\|^2$ | 目标：$\min\|X - W_{\text{dec}}W_{\text{enc}}X\|^2$ |
+| $Z = XQ_k$（线性投影） | $Z = XW_{\text{enc}}$（线性层） |
+| $\hat{X} = ZQ_k^T$（线性重构） | $\hat{X} = ZW_{\text{dec}}$（线性层） |
+| 目标：$\min\|X - XQ_kQ_k^T\|^2$ | 目标：$\min\|X - XW_{\text{enc}}W_{\text{dec}}\|_F^2$ |
 
-**当编码器和解码器都是线性的时候，最优解就是 PCA！**
+**中心化数据、线性编码/解码器、平方重构损失和秩为 $k$ 的瓶颈下，全局最优重构可由 PCA 给出。** 潜在坐标允许可逆换基，并不要求编码器的每行就是主成分；若截断处特征值重复，最优子空间也可能不唯一。
 
 证明概要：
-- 令 $W = W_{\text{dec}}W_{\text{enc}}$，则目标是 $\min\|X - WX\|^2$
-- 这等价于求 $W$ 使得 $\|(I-W)X\|_F^2$ 最小
-- 最优的 $W$ 的前 $k$ 个奇异向量就是 PCA 的主成分
+- 统一沿用样本按行的 $X\in\mathbb R^{n\times d}$，编码器 $W_{\rm enc}\in\mathbb R^{d\times k}$，解码器 $W_{\rm dec}\in\mathbb R^{k\times d}$。
+- 令 $W=W_{\rm enc}W_{\rm dec}$，目标为 $\min_{\operatorname{rank}(W)\leq k}\|X-XW\|_F^2$。
+- 取 $W=Q_kQ_k^T$ 得到 PCA 的最优重构；潜在表示本身不唯一。
 
 > 这就是为什么自编码器的**瓶颈层（bottleneck）** 被称为"非线性 PCA"——线性时退化为 PCA，非线性时超越 PCA。
 
@@ -310,7 +310,7 @@ def reparameterize(mu, logvar):
     return mu + eps * std                  # z = μ + σ⊙ε
 ```
 
-> 📖 变分推断的数学基础：[[Mathematics-Universe/06-超纲拓展/实变函数与测度论.md]]
+> 📖 变分推断的数学基础：[实变函数与测度论](https://github.com/CacinieP/Mathematics-Universe/blob/main/06-超纲拓展/实变函数与测度论.md)
 
 ### 4.3 VAE 损失函数：重构 + 正则
 
@@ -318,7 +318,7 @@ $$\mathcal{L} = \underbrace{\|X - \hat{X}\|^2}_{\text{重构损失}} + \underbra
 
 - **重构损失**：让解码器能准确还原输入（和AE一样）
 - **KL 散度**：让编码器输出的分布 $\mathcal{N}(\mu, \sigma^2)$ 接近标准正态 $\mathcal{N}(0, I)$
-  - 这迫使潜在空间**连续、完整**（插值有意义）
+  - 这鼓励聚合后验靠近先验，但不保证潜在空间无空洞或任意插值都有语义
   - 防止过拟合（潜在空间不过度记忆训练数据）
 
 ```python
@@ -368,10 +368,10 @@ def vae_loss(x_hat, x, mu, logvar):
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**这条链上的每一步，核心数学操作始终是"矩阵分解"**：
+**这条链围绕低维表示展开，但不是每一步都等价于矩阵分解**：
 - PCA：直接分解协方差矩阵
-- AE：用神经网络"隐式"分解（编码器学到特征方向，但不显式写出 $Q$）
-- VAE：在概率框架下做分解（编码器输出 $\mu$ 和 $\sigma$，描述潜在方向上的分布）
+- AE：学习编码和重构函数，非线性情形一般不是谱分解
+- VAE：用变分推断学习潜变量模型，编码器近似后验
 
 ---
 
@@ -385,7 +385,7 @@ def vae_loss(x_hat, x, mu, logvar):
 A = QΛQ^T           X @ Q_k            encoder(X) → z
                     (2行代码)           (30行代码 + 100轮训练)
                         │                    │
-                        └──── 本质相同 ───────┘
+                        └──── 表示学习的联系 ───────┘
                               ↓
                       对数据做"轴对齐"
                       保留最重要的方向
@@ -408,22 +408,22 @@ A = QΛQ^T           X @ Q_k            encoder(X) → z
 
 ### 代码
 - [scikit-learn PCA](https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html) — 生产级PCA实现
-- [PyTorch 自编码器教程](https://pytorch.org/tutorials/beginner/vae.html) — 官方VAE教程
+- [PyTorch VAE 示例](https://github.com/pytorch/examples/tree/main/vae) — 官方示例仓库中的变分自编码器实现
 
 ### 关联文章
-- [[SVD → 推荐系统 → 协同过滤]]（轴线A下一篇）
-- [[矩阵指数 → Neural ODE → 连续深度网络]]（轴线A第三篇）
-- [[特征函数 → Fourier → 注意力机制]]（轴线D）
+- [SVD → 推荐系统 → 协同过滤](02-SVD→推荐系统→协同过滤.md)（轴线A下一篇）
+- [矩阵指数 → Neural ODE → 连续深度网络](03-矩阵指数→Neural-ODE→连续深度网络.md)（轴线A第三篇）
+- [特征函数 → Fourier → 注意力机制](../轴线D-函数逼近/02-Fourier分析→注意力机制.md)（轴线D）
 
 ---
 
 ## 联系网络
 
-⬆ 上游: [[Mathematics-Universe/04-线性代数/05-特征值与特征向量/特征值与特征向量详解.md]]（特征值分解），[[Mathematics-Universe/04-线性代数/02-矩阵/矩阵详解.md]]（矩阵运算与秩），[[Mathematics-Universe/05-概率论与数理统计/04-数字特征/数字特征详解.md]]（协方差矩阵·PCA）
+⬆ 上游: [特征值与特征向量详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/04-线性代数/05-特征值与特征向量/特征值与特征向量详解.md)（特征值分解），[矩阵详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/04-线性代数/02-矩阵/矩阵详解.md)（矩阵运算与秩），[数字特征详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/05-概率论与数理统计/04-数字特征/数字特征详解.md)（协方差矩阵·PCA）
 
-⬇ 下游: [[SVD → 推荐系统 → 协同过滤]]（轴线A下一篇），[[矩阵指数 → Neural ODE]]
+⬇ 下游: [SVD → 推荐系统 → 协同过滤](02-SVD→推荐系统→协同过滤.md)（轴线A下一篇），[矩阵指数 → Neural ODE](03-矩阵指数→Neural-ODE→连续深度网络.md)
 
-↔ 横联: [[03-优化算法]]（PCA 的 max qᵀΣq, ‖q‖=1 是球面约束上的非凸问题，但通过特征分解可求得全局最优解），[[05-损失函数]]（AE的重构损失 = MSE）
+↔ 横联: [03-优化算法](../../PART-02-深度学习核心/03-优化算法.md)（PCA 的 max qᵀΣq, ‖q‖=1 是球面约束上的非凸问题，但通过特征分解可求得全局最优解），[05-损失函数](../../PART-02-深度学习核心/05-损失函数.md)（AE的重构损失 = MSE）
 
 🔗 跨域: 计算机视觉（人脸编码·风格迁移），推荐系统（用户-物品矩阵分解），生物学（单细胞RNA降维）
 

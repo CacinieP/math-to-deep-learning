@@ -8,7 +8,7 @@
 
 ### 1.1 Fourier 级数
 
-对周期 $2\pi$ 的函数 $f$，若满足 Dirichlet 条件，可展开为：
+对周期 $2\pi$ 的函数 $f$，若满足 Dirichlet 条件，Fourier 级数在连续点收敛到 $f(x)$，跳跃点收敛到左右极限的平均。下面等式按连续点书写：
 
 $$f(x) = \frac{a_0}{2} + \sum_{n=1}^{\infty} \left(a_n \cos nx + b_n \sin nx\right)$$
 
@@ -18,7 +18,7 @@ $$f(x) = \sum_{n=-\infty}^{\infty} c_n e^{inx}, \quad c_n = \frac{1}{2\pi}\int_{
 
 **核心**：把函数表示成一组**正交基** $\{e^{inx}\}$ 的线性组合。
 
-> 📖 无穷级数与 Fourier：[[Mathematics-Universe/03-高等数学/06-无穷级数/无穷级数详解.md]]
+> 📖 无穷级数与 Fourier：[无穷级数详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/03-高等数学/06-无穷级数/无穷级数详解.md)
 
 ### 1.2 正交性：内积空间的视角
 
@@ -30,7 +30,7 @@ $$\langle e_m, e_n\rangle = \delta_{mn}$$
 
 **这是 Hilbert 空间的标准操作**：找正交基 → 投影 → 得系数 → 重建。
 
-> 📖 内积空间：[[Mathematics-Universe/04-线性代数/03-向量与向量空间/向量与向量空间详解.md]]
+> 📖 内积空间：[向量与向量空间详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/04-线性代数/03-向量与向量空间/向量与向量空间详解.md)
 
 ### 1.3 连续 Fourier 变换
 
@@ -54,7 +54,7 @@ $$Q = X W_Q, \quad K = X W_K, \quad V = X W_V$$
 
 $$\text{Attn}(X) = \text{softmax}\left(\frac{Q K^\top}{\sqrt{d_k}}\right) V$$
 
-### 2.2 逐行拆解：每个 token 是一次"Fourier 展开"
+### 2.2 逐行拆解：加权叠加的类比
 
 对第 $i$ 个 token 的输出：
 
@@ -67,7 +67,7 @@ $$\text{out}_i = \sum_{j=1}^N \underbrace{\text{softmax}\left(\frac{q_i \cdot k_
 | 系数 $c_n = \langle f, e_n\rangle$（内积） | 权重 $\alpha_{ij} \propto e^{q_i \cdot k_j/\sqrt{d_k}}$（点积） |
 | 重建 $f = \sum c_n e_n$ | 输出 $\text{out}_i = \sum \alpha_{ij} v_j$ |
 
-**关键差异**：Fourier 的基是**预先固定的**（三角函数），注意力的基是**从数据学出来的**（$V$ 矩阵）。
+**类比的边界**：Fourier 使用固定正交基；注意力值向量可以线性相关、不正交，通常不构成基。注意力权重非负且和为 1，Fourier 系数可为负或复数。因此注意力是数据相关的凸组合，不是 Fourier 分解或正交投影。
 
 ### 2.3 softmax：连续的"频率选择"
 
@@ -106,9 +106,9 @@ $$\text{Var}\left(\frac{q \cdot k}{\sqrt{d_k}}\right) = 1$$
 
 ## 四、Multi-Head Attention：多组基并行
 
-### 4.1 多头 = 多组正交基
+### 4.1 多头 = 多组可学习投影（不要求正交）
 
-单头注意力相当于用一组基展开。多头把 $d$ 维拆成 $h$ 个 $d/h$ 维子空间，**每组独立做展开**：
+单头注意力相当于用一组基展开。多头把 $d$ 维拆成 $h$ 个 $d/h$ 维子空间，**每组独立做加权聚合**：
 
 $$\text{MultiHead}(X) = \text{Concat}(\text{head}_1, \ldots, \text{head}_h) W_O$$
 
@@ -153,6 +153,8 @@ out = attention(Q, K, V)        # (2, 8, 10, 64)
 class MultiHeadAttention(torch.nn.Module):
     def __init__(self, d_model=512, n_heads=8):
         super().__init__()
+        if n_heads < 1 or d_model % n_heads:
+            raise ValueError("d_model must be divisible by positive n_heads")
         self.h = n_heads
         self.dk = d_model // n_heads
         self.W_q = torch.nn.Linear(d_model, d_model)
@@ -192,17 +194,17 @@ for s in [raw, raw / math.sqrt(d_k)]:    # 未缩放 vs 除以 √d_k（分数�
 
 ### 6.1 注意力 = 低通滤波
 
-研究发现，Transformer 的注意力头里很多是**局部强关注**（邻近 token 权重高）——这等价于一个**低通滤波器**，平滑信号、提取局部模式。
+某些局部平滑注意力可以近似低通滤波，但局部关注或行随机性本身不推出低通。一般注意力依赖输入、未必平移不变，也未必能由固定 Fourier 频响描述。
 
 ### 6.2 傅里叶特征解决位置外推
 
-标准 Transformer 在长序列外推差。用**Fourier features**（把位置编码成正弦波）能显著改善——因为三角函数有周期性，天然外推。
+正弦位置特征可在任意位置计算，但这不等于模型能可靠外推到训练长度之外。周期性还可能带来混叠；外推效果依赖频率、训练长度和注意力结构，必须实验验证。
 
 ### 6.3 谱视角的 Transformer 分析
 
 把注意力矩阵做 SVD，研究其谱（特征值分布）能解释：为什么深层 Transformer 难训练（谱坍缩）、为什么需要残差连接。
 
-> 📖 谱分析视角：[[PART-04/05-Transformer的谱分析]]
+> 📖 谱分析视角：[05-Transformer的谱分析](../../PART-04-从理论到工程/05-Transformer的谱分析.md)
 
 ---
 
@@ -246,7 +248,7 @@ Attention: token = 其他 token 的值(自适应基)的加权叠加, 权重 = �
 √d:  把点积方差拉回 1, 防 softmax 饱和
 ```
 
-**注意力 = 数据驱动的 Fourier 展开。** 数学是正交基分解，工程是 softmax + 矩阵乘。
+**Fourier 与注意力都使用加权叠加，但数学结构不同。** 前者是正交基展开，后者是数据相关的加权聚合。
 
 ---
 
@@ -257,19 +259,19 @@ Attention: token = 其他 token 的值(自适应基)的加权叠加, 权重 = �
 - **Lee et al. (2021)** "FNet: Mixing Tokens with Fourier Transforms"——用 Fourier 变换替换自注意力子层，是"注意力 vs Fourier"的直接对照实验
 
 ### 关联文章
-- [[01-Weierstrass逼近→通用近似定理]]（函数逼近的另一组基）
-- [[03-正交基→残差与变换]]（正交基与残差网络）
-- [[PART-04/04-注意力机制的线性代数本质]]（线性代数视角）
+- [01-Weierstrass逼近→通用近似定理](01-Weierstrass逼近→通用近似定理.md)（函数逼近的另一组基）
+- [03-正交基→残差与变换](03-正交基→残差与变换.md)（正交基与残差网络）
+- [04-注意力机制的线性代数本质](../../PART-04-从理论到工程/04-注意力机制的线性代数本质.md)（线性代数视角）
 
 ---
 
 ## 联系网络
 
-⬆ 上游：[[Mathematics-Universe/03-高等数学/06-无穷级数/无穷级数详解.md]]（Fourier 级数），[[Mathematics-Universe/04-线性代数/03-向量与向量空间/向量与向量空间详解.md]]（内积与正交）
+⬆ 上游：[无穷级数详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/03-高等数学/06-无穷级数/无穷级数详解.md)（Fourier 级数），[向量与向量空间详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/04-线性代数/03-向量与向量空间/向量与向量空间详解.md)（内积与正交）
 
-⬇ 下游：[[PART-04/04-注意力机制的线性代数本质]]，[[PART-04/05-Transformer的谱分析]]
+⬇ 下游：[04-注意力机制的线性代数本质](../../PART-04-从理论到工程/04-注意力机制的线性代数本质.md)，[05-Transformer的谱分析](../../PART-04-从理论到工程/05-Transformer的谱分析.md)
 
-↔ 横联：[[03-正交基→残差与变换]]，[[01-Weierstrass逼近→通用近似定理]]
+↔ 横联：[03-正交基→残差与变换](03-正交基→残差与变换.md)，[01-Weierstrass逼近→通用近似定理](01-Weierstrass逼近→通用近似定理.md)
 
 🔗 跨域：信号处理（滤波器、谱分析）、图像压缩（DCT）、量子力学（态叠加）
 

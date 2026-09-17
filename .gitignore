@@ -33,3 +33,8 @@ Thumbs.db
 *.tmp
 *.bak
 *.log
+.repo_memory/
+
+# Generated reading site
+.site-docs/
+site/

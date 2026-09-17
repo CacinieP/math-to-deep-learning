@@ -33,7 +33,7 @@
 
 ## 写作规范
 
-- **公式**：用 `$...$` / `$$...$$`，支持 KaTeX
+- **公式**：用 `$...$` / `$$...$$`，在线阅读版使用 MathJax
 - **代码**：标注语言（```python），保证可运行（至少 import + 几行）
 - **链接**：内部链接用相对路径 `[[PART-02/01-神经网络基础]]`，跨仓库用 `[[Mathematics-Universe/03-高等数学/...]]`
 - **术语**：中文为主，专有名词首次出现给英文（如"反向传播（backpropagation）"）
@@ -59,3 +59,38 @@ PR 合并前会检查：
 ---
 
 > 数学是深度学习的母语，代码是它的语法。欢迎一起把这条"从纸笔推导到 GPU 训练"的理解线织得更密。
+
+
+## 在线阅读版与本地检查
+
+在线版从仓库现有 Markdown 生成，源文件仍是唯一内容来源。普通引用优先使用标准 Markdown 相对链接；跨仓库链接使用 GitHub 的 `blob/main` 文件地址，构建时会转换成配套在线读本的地址。兼容已有 `[[文件名]]`，但目标必须存在且唯一。代码块中的链接示意保持原样。
+
+先将两个仓库放在相邻目录，使用 Python 3.12+ 和 Node.js 22：
+
+```sh
+python -m venv .venv
+. .venv/bin/activate
+pip install -r requirements-site.txt
+npm ci --ignore-scripts
+python -m unittest discover -s scripts -p 'test_site.py'
+python scripts/prepare_site.py --peer ../Mathematics-Universe
+python -m mkdocs build --strict
+python scripts/check_site.py
+node scripts/check_math.cjs
+python -m mkdocs serve
+```
+
+编辑 Markdown 后需重新运行 `prepare_site.py`。`.site-docs/`、`site/` 和 `node_modules/` 都是生成文件，不提交。数学资源随站点部署，不依赖运行时 CDN。
+
+PR 会运行构建和链接检查；合并到 `main` 后，GitHub Actions 发布到 GitHub Pages。仓库 Pages 的 Source 应设置为 **GitHub Actions**。
+
+## Python 示例回归
+
+新增或修改完整代码定义后，运行：
+
+```sh
+pip install -r requirements-examples.txt
+python scripts/test_examples.py
+```
+
+测试从正文读取函数/类，执行小规模 CPU 数值检查；接口片段须注明所需上下文。CI 将示例回归与阅读站构建分开运行，两者均通过才部署。

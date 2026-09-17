@@ -20,13 +20,13 @@ $$I(X; Y) = D_{\text{KL}}(p_{X,Y} \| p_X \otimes p_Y)$$
 
 ### 1.3 数据处理不等式（关键约束）
 
-若 $X \to Z \to Y$ 是马尔可夫链（$Z$ 由 $X$ 处理得到）：
+若 $Y\to X\to Z$ 是马尔可夫链（表示 $Z$ 只由输入 $X$ 生成，不额外访问标签）：
 
 $$I(X; Y) \geq I(Z; Y)$$
 
 **深度学习含义**：网络每一层处理都不会"创造"新信息，只会丢失或保留。表示学习的目标是**保留预测相关信息**。
 
-> 📖 互信息基础：[[02-KL散度→信息瓶颈]]
+> 📖 互信息基础：[02-KL散度→信息瓶颈](02-KL散度→信息瓶颈.md)
 
 ---
 
@@ -48,7 +48,7 @@ $$\mathcal{L}_{\text{NCE}} = -\mathbb{E}\!\left[\log \frac{e^{s(z_1, z_2^+)/\tau
 - $z^-$：负样本（其他图）
 - $s$：相似度（余弦）
 
-**定理（van den Oord, 2018）**：最小化 NCE 等价于最大化互信息的下界，且该下界与负样本数 $K$ 的对数相关：
+**定理（van den Oord, 2018）**：最小化 NCE 等价于最大化互信息的下界，且该下界与总候选数 $K$（1 个正样本加 $K-1$ 个独立边缘负样本）的对数相关：
 
 $$I(Z_1; Z_2) \geq \log K - \mathcal{L}_{\text{NCE}}$$
 
@@ -111,7 +111,7 @@ def info_nce(z1, z2, temperature=0.1):
     z1 = F.normalize(z1, dim=1)
     z2 = F.normalize(z2, dim=1)
     logits = z1 @ z2.T / temperature        # (B, B) 相似度矩阵
-    labels = torch.arange(z1.size(0))
+    labels = torch.arange(z1.size(0), device=z1.device)
     # 对角线是正样本, 其余是负样本
     return F.cross_entropy(logits, labels)
 ```
@@ -125,16 +125,19 @@ def rm_loss(rm, x, y_win, y_lose):
     return -F.logsigmoid(r_w - r_l).mean()   # 二元交叉熵
 ```
 
-### 4.3 PPO 的 KL 惩罚
+### 4.3 带 KL 的策略梯度（序列级教学示例）
+
+以下 `generate` / `logp` 是模型包装接口，需由调用方提供。采样奖励本身不能直接对离散采样反传；需要 log-probability 的 score-function 梯度。这里没有 PPO 裁剪，完整 PPO 见 [05-RLHF的博弈论视角](../../PART-05-前沿中的数学/05-RLHF的博弈论视角.md)。
 
 ```python
-def ppo_loss(policy, ref_policy, rm, x, beta=0.1):
-    y, logp = policy.generate(x, return_logp=True)
+def policy_gradient_loss(policy, ref_policy, rm, x, beta=0.1):
     with torch.no_grad():
+        y, old_logp = policy.generate(x, return_logp=True)
         logp_ref = ref_policy.logp(x, y)
-    reward = rm(x, y)
-    kl = (logp - logp_ref).mean()   # KL 的蒙特卡洛估计
-    return -(reward - beta * kl).mean()
+        reward = rm(x, y)
+        advantage = reward - beta * (old_logp - logp_ref)
+    logp = policy.logp(x, y)  # 每条回答的 token 对数概率之和
+    return -(logp * advantage.detach()).mean()
 ```
 
 ### 4.4 DPO 损失
@@ -164,7 +167,7 @@ def dpo_loss(policy, ref_policy, x, y_w, y_l, beta=0.1):
 
 ### 5.3 大模型的能力 vs 对齐
 
-预训练最大化"下一词"互信息 $I(\text{上下文}; \text{下一词})$（即最小化交叉熵）。RLHF 在此基础上**对齐人类偏好**——两个阶段分别处理"能力"和"方向"。
+预训练最小化下一词交叉熵，即拟合数据的条件分布。数据分布下 $I(\text{上下文};\text{下一词})$ 是固定量，不能直接说它被模型训练最大化。RLHF 在此基础上**对齐人类偏好**——两个阶段分别处理"能力"和"方向"。
 
 ---
 
@@ -211,32 +214,32 @@ RLHF:    奖励 = 偏好隐变量的信息
          DPO: 把 RL 目标闭式化成监督损失
 ```
 
-**互信息是连接表示学习与对齐的数学主线。** 对比学习用它学表示，RLHF 用它（经 KL）约束对齐。
+**互信息与 KL 提供相关但不同的信息论视角。** InfoNCE 可优化互信息下界；RLHF 的策略 KL 通常并不是某个互信息。
 
 ---
 
 ## 八、延伸阅读
 
 ### 论文
-- **van den Oord et al. (2018)** "Representation Learning with Contrastive Predictive Coding"——InfoNCE
+- [van den Oord et al. (2018), Representation Learning with Contrastive Predictive Coding](https://arxiv.org/abs/1807.03748)——InfoNCE
 - **Chen et al. (2020)** "SimCLR"——对比学习代表
 - **Radford et al. (2021)** "CLIP"——图文互信息
 - **Christiano et al. (2017)** "Deep RL from Human Preferences"——RLHF 奠基
 - **Rafailov et al. (2023)** "Direct Preference Optimization"——DPO
 
 ### 关联文章
-- [[01-熵→交叉熵损失]]、[[02-KL散度→信息瓶颈]]（信息论基础）
-- [[PART-05/05-RLHF的博弈论视角]]（RLHF 的博弈论分析）
+- [01-熵→交叉熵损失](01-熵→交叉熵损失.md)、[02-KL散度→信息瓶颈](02-KL散度→信息瓶颈.md)（信息论基础）
+- [05-RLHF的博弈论视角](../../PART-05-前沿中的数学/05-RLHF的博弈论视角.md)（RLHF 的博弈论分析）
 
 ---
 
 ## 联系网络
 
-⬆ 上游：[[02-KL散度→信息瓶颈]]（互信息 = KL 的期望），[[Mathematics-Universe/05-概率论与数理统计/04-数字特征/数字特征详解.md]]
+⬆ 上游：[02-KL散度→信息瓶颈](02-KL散度→信息瓶颈.md)（互信息 = KL 的期望），[数字特征详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/05-概率论与数理统计/04-数字特征/数字特征详解.md)
 
-⬇ 下游：[[PART-05/05-RLHF的博弈论视角]]（博弈论下的 RLHF）
+⬇ 下游：[05-RLHF的博弈论视角](../../PART-05-前沿中的数学/05-RLHF的博弈论视角.md)（博弈论下的 RLHF）
 
-↔ 横联：[[01-熵→交叉熵损失]]、[[PART-02/05-损失函数]]（对比/偏好损失在损失家族中的位置）
+↔ 横联：[01-熵→交叉熵损失](01-熵→交叉熵损失.md)、[05-损失函数](../../PART-02-深度学习核心/05-损失函数.md)（对比/偏好损失在损失家族中的位置）
 
 🔗 跨域：神经科学（互信息与神经编码）、经济学（偏好建模）、信息检索（学习排序）
 

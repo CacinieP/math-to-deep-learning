@@ -18,7 +18,7 @@ $$P(A|B) = \frac{P(B|A) \cdot P(A)}{P(B)}$$
 
 $$P(B) = \sum_i P(B|A_i)P(A_i) \quad (\text{若 } \{A_i\} \text{ 是完备事件组})$$
 
-> 📖 条件概率与全概率公式：[[Mathematics-Universe/05-概率论与数理统计/01-随机事件与概率/随机事件与概率详解.md#12-条件概率与独立性]]
+> 📖 条件概率与全概率公式：[随机事件与概率详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/05-概率论与数理统计/01-随机事件与概率/随机事件与概率详解.md#12-条件概率链)
 
 ### 1.2 用 Monty Hall 问题直觉化
 
@@ -28,7 +28,7 @@ $$P(\text{车在门2}|\text{主持人开3}) = \frac{P(\text{开3}|\text{车在�
 
 - 先验：$P(\text{车在门}i) = 1/3$
 - 似然：主持人行为提供了信息（他不会开有车的门）
-- 后验：换门赢率 = $2/3$
+- 后验：若主持人在有两扇羊门可开时等概率选择，给定开门 3 后换门赢率为 $2/3$；无论这种选择偏好，预先决定总是换门的总体赢率均为 $2/3$
 
 **直觉**：主持人知道答案，他的行为是"证据"。Bayes 公式教你如何把这个证据更新到你的信念中。
 
@@ -45,7 +45,7 @@ $$p(\theta|D) = \frac{p(D|\theta) \cdot p(\theta)}{p(D)}$$
 | $p(\theta|D)$ | 参数后验 | 训练后对权重的信念 |
 | $p(D)$ | 证据（边际似然） | 对所有可能的 $\theta$ 积分 |
 
-**核心困难**：$p(\theta|D)$ 通常**无法解析计算**——后验分布的维度等于参数个数，对于有百万参数的神经网络，这在高维空间上不可积。
+**核心困难**：$p(\theta|D)$ 通常**无法解析计算**——后验分布的维度等于参数个数，对于有百万参数的神经网络，这个高维积分通常难以精确求值（并非数学上不可积）。
 
 ---
 
@@ -105,7 +105,7 @@ def bayesian_linear_regression(X, y, tau=1.0, sigma=0.1):
     # 后验: w|D ~ N(μ_post, Σ_post)
 
     n, d = X.shape
-    Sigma_prior_inv = (1 / tau**2) * torch.eye(d)       # 先验精度
+    Sigma_prior_inv = (1 / tau**2) * torch.eye(d, device=X.device, dtype=X.dtype)       # 先验精度
     Sigma_likelihood_inv = (1 / sigma**2) * (X.T @ X)    # 似然精度
     Sigma_post = torch.inverse(Sigma_prior_inv + Sigma_likelihood_inv)
 
@@ -117,7 +117,7 @@ def predict_bayesian(x_new, mu_post, Sigma_post, sigma=0.1):
     """贝叶斯预测（返回均值和不确定性）"""
     y_mean = x_new @ mu_post
     # 预测方差 = 数据噪声 + 模型不确定性
-    y_var = sigma**2 + x_new @ Sigma_post @ x_new.T
+    y_var = sigma**2 + ((x_new @ Sigma_post) * x_new).sum(dim=-1)  # 每个输入的边缘方差
     return y_mean, y_var
 ```
 
@@ -131,10 +131,10 @@ def predict_bayesian(x_new, mu_post, Sigma_post, sigma=0.1):
 
 在神经网络中：
 - 参数是 $W^{(1)}, b^{(1)}, W^{(2)}, b^{(2)}, \ldots$（多层非线性）
-- 似然 $p(y|x, \theta)$ 不是高斯（经过ReLU/Softmax）
+- 即便回归似然仍为高斯，其均值对权重也通常是非线性的，因而失去高斯共轭结构
 - **后验 $p(\theta|D)$ 无法解析计算**
 
-这就是为什么神经网络在2010年之前不是"贝叶斯的"——计算不可行。
+贝叶斯神经网络在 1990 年代已有研究；大规模近似推断的计算成本一直是挑战。
 
 ### 3.2 变分推断：用可学习的分布近似后验
 
@@ -142,7 +142,7 @@ def predict_bayesian(x_new, mu_post, Sigma_post, sigma=0.1):
 
 $$\theta \sim \mathcal{N}(\mu_\phi, \sigma_\phi^2)$$
 
-其中 $\mu_\phi$ 和 $\sigma_\phi$ 是神经网络的**输出**（通过softplus保证正性）。
+其中 $\mu_\phi$ 与 $\rho_\phi$ 通常直接作为变分参数学习，令 $\sigma_\phi=\operatorname{softplus}(\rho_\phi)$ 保证尺度正性。
 
 **训练目标**：最小化 KL 散度
 
@@ -169,71 +169,58 @@ $$w_i = \mu_i + \sigma_i \odot \epsilon_i, \quad \epsilon_i \sim \mathcal{N}(0, 
 这样 $w_i$ 是 $\mu_i$ 和 $\sigma_i$ 的**确定性函数**，梯度可以正常反向传播。
 
 ```python
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.distributions import Normal, kl_divergence
+
 class BayesianLinear(nn.Module):
-    """贝叶斯线性层——权重是随机变量"""
     def __init__(self, in_features, out_features):
         super().__init__()
-        # 每个权重有均值和对数方差两个参数
         self.weight_mu = nn.Parameter(torch.zeros(out_features, in_features))
-        self.weight_rho = nn.Parameter(torch.zeros(out_features, in_features))
+        self.weight_rho = nn.Parameter(torch.full((out_features, in_features), -3.0))
         self.bias_mu = nn.Parameter(torch.zeros(out_features))
-        self.bias_rho = nn.Parameter(torch.zeros(out_features))
-
-        # 先验：N(0, 1)
-        self.prior = torch.distributions.Normal(0, 1)
+        self.bias_rho = nn.Parameter(torch.full((out_features,), -3.0))
 
     def forward(self, x):
-        # 重参数化：从 rho 得到 sigma（保证正性）
-        weight_sigma = torch.log(1 + torch.exp(self.weight_rho))  # softplus
-        bias_sigma = torch.log(1 + torch.exp(self.bias_rho))
-
-        # 采样（重参数化）
-        weight_eps = torch.randn_like(self.weight_sigma)
-        bias_eps = torch.randn_like(self.bias_sigma)
-
-        weight = self.weight_mu + weight_sigma * weight_eps
-        bias = self.bias_mu + bias_sigma * bias_eps
-
+        weight_sigma = F.softplus(self.weight_rho)
+        bias_sigma = F.softplus(self.bias_rho)
+        weight = self.weight_mu + weight_sigma * torch.randn_like(weight_sigma)
+        bias = self.bias_mu + bias_sigma * torch.randn_like(bias_sigma)
         return F.linear(x, weight, bias)
 
     def kl_divergence(self):
-        """KL(q(w) || p(w))"""
-        q_weight = Normal(self.weight_mu, torch.log(1 + torch.exp(self.weight_rho)))
-        q_bias = Normal(self.bias_mu, torch.log(1 + torch.exp(self.bias_rho)))
-
-        kl_w = kl_divergence(q_weight, self.prior).sum()
-        kl_b = kl_divergence(q_bias, self.prior).sum()
-        return kl_w + kl_b
+        total = self.weight_mu.new_zeros(())
+        for mu, rho in [(self.weight_mu, self.weight_rho), (self.bias_mu, self.bias_rho)]:
+            q = Normal(mu, F.softplus(rho))
+            prior = Normal(torch.zeros_like(mu), torch.ones_like(mu))
+            total = total + kl_divergence(q, prior).sum()
+        return total
 
 class BayesianMLP(nn.Module):
-    """贝叶斯神经网络"""
     def __init__(self, input_dim, hidden_dim, output_dim):
         super().__init__()
         self.fc1 = BayesianLinear(input_dim, hidden_dim)
         self.fc2 = BayesianLinear(hidden_dim, output_dim)
 
     def forward(self, x):
-        x = F.relu(self.fc1(x))
-        return self.fc2(x)
+        return self.fc2(F.relu(self.fc1(x)))
 
-    def elbo_loss(self, x, y, n_samples=5):
-        """
-        证据下界（ELBO）损失
-        n_samples: 蒙特卡洛采样次数
-        """
-        cross_entropy = 0
-        kl = self.kl_divergence()
+    def kl_divergence(self):
+        return self.fc1.kl_divergence() + self.fc2.kl_divergence()
 
-        for _ in range(n_samples):
-            y_pred = self.forward(x)
-            # F.cross_entropy 返回负对数似然（交叉熵）
-            cross_entropy += F.cross_entropy(y_pred, y, reduction='sum')
+    def elbo_loss(self, x, y, dataset_size=None, n_samples=5):
+        # 平均 NLL + KL / 全数据集大小；mini-batch 不能用批大小代替 N。
+        N = len(x) if dataset_size is None else dataset_size
+        if n_samples < 1 or N < len(x):
+            raise ValueError("invalid sample count or dataset size")
+        nll = torch.stack([F.cross_entropy(self(x), y) for _ in range(n_samples)]).mean()
+        return nll + self.kl_divergence() / N
 
-        cross_entropy /= n_samples
-
-        # ELBO = E[log p(D|θ)] - KL(q||p)
-        # 最小化 -ELBO = KL + 交叉熵（即负对数似然项）
-        return kl / len(x) + cross_entropy / len(x)
+model = BayesianMLP(4, 8, 3)
+x, y = torch.randn(6, 4), torch.randint(0, 3, (6,))
+loss = model.elbo_loss(x, y, dataset_size=60)
+loss.backward()
 ```
 
 ### 3.4 贝叶斯神经网络 vs 普通神经网络
@@ -242,10 +229,10 @@ class BayesianMLP(nn.Module):
 |------|------------|---------------|
 | 权重 | 固定值（点估计） | 分布（$w \sim \mathcal{N}(\mu, \sigma^2)$） |
 | 预测 | 单一输出 | 多次采样取平均 = 分布 |
-| 不确定性 | 无（Softmax 过于自信） | 有（对陌生输入给出低置信度） |
+| 不确定性 | 可用输出概率/校准或集成估计，但不自动表示参数后验 | 可估计（是否可靠仍取决于先验、近似质量和校准） |
 | 参数量 | $N$ | $2N$（均值+方差） |
 | 训练速度 | 快（一次前向+反向） | 慢（多次采样 + KL 计算） |
-| 正则化 | Dropout / L2（启发式） | KL散度（理论保证） |
+| 正则化 | Dropout / L2（启发式） | KL 项来自 ELBO；不保证泛化或校准 |
 
 ---
 
@@ -253,7 +240,7 @@ class BayesianMLP(nn.Module):
 
 ### 4.1 深度学习的"朴素贝叶斯"
 
-Gal & Ghahramani (2016) 发现：**Dropout 在推理时保持开启，等价于贝叶斯神经网络的变分推断**。
+Gal & Ghahramani (2016) 在特定模型、正则化与变分族假设下，将 Dropout 解释为近似贝叶斯推断。推理时重复采样掩码可估计预测波动，但并非任意带 Dropout 网络都等价于精确后验采样。
 
 ```
 训练时（标准Dropout）:
@@ -271,33 +258,35 @@ Gal & Ghahramani (2016) 发现：**Dropout 在推理时保持开启，等价于�
 
 **数学解释**：
 - Dropout = 在权重上施加了伯努利噪声
-- 训练时优化的是**集成模型**（无穷多个子网络的均值）
-- 推理时多次前向传播 = 从后验分布中采样
+- 训练时优化的是**集成模型**（有限个掩码子网络的共享参数近似集成）
+- 推理时多次前向传播 = 从掩码诱导的近似分布中采样
 
 **这不需要修改训练代码，只需要在推理时多加几行**：
 
 ```python
 def mc_dropout_predict(model, x, n_samples=20):
-    """
-    蒙特卡洛 Dropout 推理
-    不需要修改训练——只需要推理时保持 dropout 开启
-    """
-    model.train()  # 关键：保持 dropout 活跃！
+    """仅启用 Dropout；成功或失败都恢复各子模块原有 train/eval 状态。"""
+    if not isinstance(n_samples, int) or n_samples < 2:
+        raise ValueError("n_samples must be an integer >= 2")
+    original_modes = {m: m.training for m in model.modules()}
     predictions = []
-
-    for _ in range(n_samples):
+    try:
+        model.eval()  # 保持 BatchNorm 的运行统计不变
+        for m in model.modules():
+            if isinstance(m, (nn.Dropout, nn.Dropout1d, nn.Dropout2d, nn.Dropout3d)):
+                m.train()
         with torch.no_grad():
-            logits = model(x)
-            probs = F.softmax(logits, dim=-1)
-            predictions.append(probs)
+            for _ in range(n_samples):
+                predictions.append(F.softmax(model(x), dim=-1))
+        predictions = torch.stack(predictions)
+        mean = predictions.mean(dim=0)
+        std = predictions.std(dim=0)
+        entropy = -(mean * torch.log(mean + 1e-8)).sum(dim=-1)
+        return mean, std, entropy
+    finally:
+        for m, training in original_modes.items():
+            m.training = training
 
-    predictions = torch.stack(predictions)  # (n_samples, batch, num_classes)
-
-    mean = predictions.mean(dim=0)          # 预测均值
-    std = predictions.std(dim=0)            # 预测不确定性
-    entropy = -(mean * torch.log(mean + 1e-8)).sum(dim=-1)  # 熵
-
-    return mean, std, entropy
 ```
 
 ### 4.2 不确定性的两种类型
@@ -332,7 +321,7 @@ def mc_dropout_predict(model, x, n_samples=20):
 | Dropout | 权重的随机子集 | 不是严格的贝叶斯先验 |
 | 权重剪枝 | 稀疏先验 | $p(w) = \text{spike-and-slab}$ |
 
-**关键洞见**：你在训练中使用的所有"正则化技巧"，在 Bayes 视角下都是**先验分布**的选择。
+**关键洞见**：显式参数惩罚在合适归一化下可对应 MAP 先验；Dropout、数据增强等其他机制不能一概等同于先验选择。
 
 ### 5.2 训练 = 求后验
 
@@ -355,7 +344,7 @@ def mc_dropout_predict(model, x, n_samples=20):
                     ↓
 贝叶斯神经网络:   q(w|D) ≈ N(μ_φ, σ_φ)    ← 用变分推断近似
                     ↓
-MC Dropout:      多次前向传播采样 = 从后验采样
+MC Dropout:      多次掩码前向传播 = 近似预测采样
                     ↓
                     本质一句话：
                     权重不是学到一个固定值，
@@ -372,26 +361,26 @@ MC Dropout:      多次前向传播采样 = 从后验采样
 ### 论文
 - **贝叶斯深度学习综述**：Gal (2016) "Uncertainty in Deep Learning" — PhD thesis, UCL
 - **MC Dropout**：Gal & Ghahramani (2016) "Dropout as a Bayesian Approximation"
-- **贝叶斯神经网络**：Blundell et al. (2015) "Weight Uncertainty in Neural Networks" — 重参数化技巧首次系统用于 BNN 权重（Bayes by Backprop；技巧本身更早出自 Kingma & Welling 2013 / Rezende et al. 2014）
+- **贝叶斯神经网络**：[Blundell et al. (2015), Weight Uncertainty in Neural Networks](https://proceedings.mlr.press/v37/blundell15.html) — 重参数化技巧首次系统用于 BNN 权重（Bayes by Backprop；技巧本身更早出自 Kingma & Welling 2013 / Rezende et al. 2014）
 
 ### 课程
-- [UCL Bayesian Deep Learning](https://www.bayes-deep-learning.net/) — Gal 的课程讲义
+- [Bayesian Deep Learning Workshop](https://bayesiandeeplearning.org/) — 贝叶斯深度学习专题报告与论文
 - [CS229T: Trustworthy ML](https://cs229t.stanford.edu/) — Stanford 不确定性量化专题
 
 ### 关联文章
-- [[MLE → 交叉熵损失]]（轴线B下一篇）
-- [[正态分布 → Xavier/He 初始化]]（轴线B第三篇）
-- [[重参数化 → VAE]]（轴线A已覆盖）
+- [MLE → 交叉熵损失](02-MLE→交叉熵损失.md)（轴线B下一篇）
+- [He 初始化](03-正态分布→Xavier-He初始化.md)（轴线B第三篇）
+- [重参数化 → VAE](../轴线E-信息论/02-KL散度→信息瓶颈.md)（轴线A已覆盖）
 
 ---
 
 ## 联系网络
 
-⬆ 上游: [[Mathematics-Universe/05-概率论与数理统计/01-随机事件与概率/随机事件与概率详解.md]]（Bayes公式与全概率），[[Mathematics-Universe/05-概率论与数理统计/06-数理统计基础/数理统计基础详解.md]]（参数估计·MLE）
+⬆ 上游: [随机事件与概率详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/05-概率论与数理统计/01-随机事件与概率/随机事件与概率详解.md)（Bayes公式与全概率），[数理统计基础详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/05-概率论与数理统计/06-数理统计基础/数理统计基础详解.md)（参数估计·MLE）
 
-⬇ 下游: [[MLE → 交叉熵损失]]（轴线B下一篇），[[重参数化 → VAE]]
+⬇ 下游: [MLE → 交叉熵损失](02-MLE→交叉熵损失.md)（轴线B下一篇），[重参数化 → VAE](../轴线E-信息论/02-KL散度→信息瓶颈.md)
 
-↔ 横联: [[04-正则化]]（贝叶斯视角下的正则化 = 先验），[[01-特征值分解]]（贝叶斯线性回归的共轭推导）
+↔ 横联: [04-正则化](../../PART-02-深度学习核心/04-正则化.md)（贝叶斯视角下的正则化 = 先验），[01-特征值分解](../轴线A-矩阵分解/01-特征值分解→PCA→自编码器.md)（贝叶斯线性回归的共轭推导）
 
 🔗 跨域: 自动驾驶（不确定性量化用于安全决策），医疗AI（模型自信度评估），主动学习（用不确定性指导采样）
 

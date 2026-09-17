@@ -14,7 +14,7 @@ $$\|f - p\|_\infty = \sup_{x \in [a,b]} |f(x) - p(x)| < \varepsilon$$
 
 **含义**：多项式在连续函数空间中**稠密**。再"难看"的连续函数，都能被多项式一致逼近到任意精度。
 
-> 📖 连续函数空间：[[Mathematics-Universe/03-高等数学/01-极限与连续/极限与连续详解.md]]
+> 📖 连续函数空间：[极限与连续详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/03-高等数学/01-极限与连续/极限与连续详解.md)
 
 ### 1.2 Bernstein 多项式构造性证明
 
@@ -31,7 +31,7 @@ $$B_n(f)(x) = \sum_{k=0}^n f\left(\frac{k}{n}\right) \binom{n}{k} x^k (1-x)^{n-k
 
 **意义**：不仅证了存在，还给了**显式构造**——概率论成了分析学的工具。
 
-> 📖 大数定律：[[Mathematics-Universe/05-概率论与数理统计/05-大数定律与中心极限定理/大数定律与中心极限定理详解.md]]
+> 📖 大数定律：[大数定律与中心极限定理详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/05-概率论与数理统计/05-大数定律与中心极限定理/大数定律与中心极限定理详解.md)
 
 ### 1.3 函数空间的视角
 
@@ -39,9 +39,9 @@ $$B_n(f)(x) = \sum_{k=0}^n f\left(\frac{k}{n}\right) \binom{n}{k} x^k (1-x)^{n-k
 
 $$\overline{\text{span}\{1, x, x^2, \ldots\}} = C[a,b]$$
 
-多项式张成的子空间在 $C[a,b]$ 中**稠密**。这是泛函分析里"基"概念的雏形——多项式是 $C[a,b]$ 的一组（拓扑）基。
+多项式张成的子空间在 $C[a,b]$ 中**稠密**。这是泛函分析里"基"概念的雏形——多项式族线性张成稠密，但稠密性不等于 Schauder 基；并非每个连续函数都能以唯一的单项式级数一致展开。
 
-> 📖 函数空间：[[Mathematics-Universe/06-超纲拓展/数值分析.md]]
+> 📖 函数空间：[数值分析](https://github.com/CacinieP/Mathematics-Universe/blob/main/06-超纲拓展/数值分析.md)
 
 ---
 
@@ -49,7 +49,7 @@ $$\overline{\text{span}\{1, x, x^2, \ldots\}} = C[a,b]$$
 
 ### 2.1 通用近似定理（Cybenko, 1989）
 
-设 $\sigma$ 是 sigmoidal 函数（Cybenko 1989 的 sigmoidal 条件；Hornik 1989/1991 证明有界非常数激活即可，如 sigmoid）。则函数族：
+设 $\sigma$ 是**连续** sigmoidal 函数，例如 logistic sigmoid。则函数族：
 
 $$\mathcal{F} = \left\{ g(x) = \sum_{i=1}^N \alpha_i \sigma(w_i^\top x + b_i) : N \in \mathbb{N}, \alpha_i \in \mathbb{R}, w_i \in \mathbb{R}^d, b_i \in \mathbb{R} \right\}$$
 
@@ -74,8 +74,8 @@ Cybenko 的证明用了**泛函分析的对偶论证**：
 
 ### 2.3 多元与多层的推广
 
-- **Hornik (1991)**：定理对任意可测函数也成立（不只是连续），且与激活函数具体形式关系不大
-- **多层版本**：深度网络能用**指数级更少**的单元达到单层的逼近精度（见 [Telgarsky, 2016] 等）
+- **Hornik (1991)**：在有限测度的 $L^p$ 等适当意义下可推广到可测函数；不代表对不连续函数也能用连续网络一致逼近
+- **深度分离**：对特定构造的函数族与误差度量，深层网络可比浅层网络节省指数级单元；不是对每个目标函数都成立
 
 ---
 
@@ -83,11 +83,11 @@ Cybenko 的证明用了**泛函分析的对偶论证**：
 
 ### 3.1 单层要多少神经元
 
-对 Lipschitz 常数为 $L$ 的函数，在 $d$ 维上，单层网络要达到误差 $\varepsilon$ 所需神经元数约为：
+网格插值的直觉是：在固定大小的 $d$ 维区域上，Lipschitz 常数为 $L$ 的函数要控制误差 $\varepsilon$，网格单元数通常随下面的量级增长：
 
 $$N = O\left(\left(\frac{L}{\varepsilon}\right)^d\right)$$
 
-**维数灾难**：维度 $d$ 一高，所需宽度指数爆炸。
+**维数灾难**：一般函数的这种网格构造随维度很昂贵；这不是不带条件的单隐层网络最优宽度定理，结构化函数可能容易得多。
 
 ### 3.2 深度的指数加速
 
@@ -159,7 +159,7 @@ deep    = nn.Sequential(nn.Linear(1, 32), nn.ReLU(),
                         nn.Linear(32, 32), nn.ReLU(),
                         nn.Linear(32, 32), nn.ReLU(),
                         nn.Linear(32, 1))                                   # 5 层, 32 宽, 3265 参数
-# 浅宽 769 参数 vs 深窄 3265 参数——深度省参数的代价是优化更难
+# 浅宽 769 参数 vs 深窄 3265 参数——这里只展示架构，不能用这组不同参数预算的示例证明深度省参数
 ```
 
 ---
@@ -230,19 +230,19 @@ Cybenko  (1989):  任何连续函数 ≈ Σαᵢσ(wᵢ·x+bᵢ)(基: 神经元)
 - **Telgarsky (2016)** "Benefits of Depth in Neural Networks"——深度指数优势
 
 ### 关联文章
-- [[02-Fourier分析→注意力机制]]（另一组基：三角函数）
-- [[03-正交基→残差与变换]]（正交基与残差网络）
-- [[PART-02/01-神经网络基础]]（被逼近的函数结构）
+- [02-Fourier分析→注意力机制](02-Fourier分析→注意力机制.md)（另一组基：三角函数）
+- [03-正交基→残差与变换](03-正交基→残差与变换.md)（正交基与残差网络）
+- [01-神经网络基础](../../PART-02-深度学习核心/01-神经网络基础.md)（被逼近的函数结构）
 
 ---
 
 ## 联系网络
 
-⬆ 上游：[[Mathematics-Universe/03-高等数学/01-极限与连续/极限与连续详解.md]]（连续性与一致收敛），[[Mathematics-Universe/05-概率论与数理统计/05-大数定律与中心极限定理/大数定律与中心极限定理详解.md]]（Bernstein 证明）
+⬆ 上游：[极限与连续详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/03-高等数学/01-极限与连续/极限与连续详解.md)（连续性与一致收敛），[大数定律与中心极限定理详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/05-概率论与数理统计/05-大数定律与中心极限定理/大数定律与中心极限定理详解.md)（Bernstein 证明）
 
-⬇ 下游：[[02-Fourier分析→注意力机制]]，[[03-正交基→残差与变换]]
+⬇ 下游：[02-Fourier分析→注意力机制](02-Fourier分析→注意力机制.md)，[03-正交基→残差与变换](03-正交基→残差与变换.md)
 
-↔ 横联：[[PART-02/01-神经网络基础]]（网络结构），[[PART-04/02-梯度消失爆炸的数学根源]]（深度的代价）
+↔ 横联：[01-神经网络基础](../../PART-02-深度学习核心/01-神经网络基础.md)（网络结构），[02-梯度消失爆炸的数学根源](../../PART-04-从理论到工程/02-梯度消失爆炸的数学根源.md)（深度的代价）
 
 🔗 跨域：数值分析（多项式插值、样条）、信号处理（滤波器设计）
 

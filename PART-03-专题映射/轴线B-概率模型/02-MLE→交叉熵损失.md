@@ -20,7 +20,7 @@ $$\hat{\theta}_{\text{MLE}} = \arg\max_\theta \sum_{i=1}^n \log p(y_i|x_i; \thet
 
 $$\hat{\theta}_{\text{MLE}} = \arg\min_\theta \underbrace{-\sum_{i=1}^n \log p(y_i|x_i; \theta)}_{\text{负对数似然 (NLL)}}$$
 
-> 📖 MLE 的完整推导与性质：[[Mathematics-Universe/05-概率论与数理统计/06-数理统计基础/数理统计基础详解.md#43-参数估计]]
+> 📖 MLE 的完整推导与性质：[数理统计基础详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/05-概率论与数理统计/06-数理统计基础/数理统计基础详解.md#二参数估计)
 
 ### 1.2 MLE 的核心思想
 
@@ -118,23 +118,17 @@ MSE:   loss = (y_pred - y_true)^2
 
 **等等，这不是说 MSE 更好吗？** 不——问题在于梯度：
 
-```python
-# 交叉熵 + softmax 的梯度（对 logits）
-# dL/dz_c = softmax(z)_c - 1_{c=y_true}
-grad_ce = probs - one_hot  # (batch, C)
+对单个样本，令 $p=\operatorname{softmax}(z)$、$t$ 为 one-hot 标签，并定义 $L_{\rm MSE}=\frac12\sum_c(p_c-t_c)^2$，则
 
-# MSE 的梯度（独立 sigmoid 输出情形：各输出概率相互独立，非 softmax 耦合）
-# dL/dz = (p - one_hot) ⊙ p ⊙ (1 - p)
-# 注：softmax 耦合输出下梯度不同，还需减去 p ⊙ Σ_k(p_k - t_k)p_k 项
-grad_mse = (probs - one_hot) * probs * (1 - probs)  # (batch, C)
+```python
+# 在已有 logits/probs/y 的上下文中，按样本计算（尚未除 batch）
+one_hot = F.one_hot(y, num_classes=probs.size(-1)).to(probs.dtype)
+grad_ce = probs - one_hot
+error = probs - one_hot
+grad_mse = probs * (error - (error * probs).sum(dim=-1, keepdim=True))
 ```
 
-**关键差异**：MSE 的梯度被 $\text{softmax}(z) \odot (1-\text{softmax}(z))$ 缩放。
-
-- 当模型已经很确定（$p \approx 1$）时，$\text{softmax} \odot (1-\text{softmax}) \approx 0$
-- **梯度消失！** 模型在"已经做对"的区域几乎不学习
-
-**交叉熵没有这个问题**——梯度始终是 $p_c - \mathbb{1}_{c=y}$，当 $p_c$ 接近 1 时梯度接近 0（这是对的——已经很好了，不需要再学）。
+softmax 的 Jacobian 为 $\operatorname{diag}(p)-pp^T$，不能把各类别当独立 sigmoid。关键问题是**自信但错误**的预测：MSE 额外经过接近零的 softmax Jacobian，梯度可能很小；CE 对 logits 的梯度仍为 $p-t$。正确且自信时两者梯度趋零都合理。MSE 用于概率预测即 Brier score，并非数学上禁止用于分类。
 
 ---
 
@@ -270,19 +264,19 @@ loss = F.binary_cross_entropy_with_logits(logits, targets)
 - [PyTorch `F.binary_cross_entropy_with_logits`](https://pytorch.org/docs/stable/generated/torch.nn.functional.binary_cross_entropy_with_logits.html) — 二分类的数值稳定版本
 
 ### 关联文章
-- [[Bayes 定理 → 贝叶斯神经网络]]（轴线B上一篇）
-- [[正态分布 → Xavier/He 初始化]]（轴线B第三篇）
-- [[KL 散度 → VAEs]]（轴线A已覆盖）
+- [Bayes 定理 → 贝叶斯神经网络](01-Bayes定理→贝叶斯神经网络.md)（轴线B上一篇）
+- [He 初始化](03-正态分布→Xavier-He初始化.md)（轴线B第三篇）
+- [KL 散度 → VAEs](../轴线E-信息论/02-KL散度→信息瓶颈.md)（轴线A已覆盖）
 
 ---
 
 ## 联系网络
 
-⬆ 上游: [[Mathematics-Universe/05-概率论与数理统计/06-数理统计基础/数理统计基础详解.md]]（MLE 的数学推导），[[Mathematics-Universe/05-概率论与数理统计/01-随机事件与概率/随机事件与概率详解.md]]（Bayes 公式 → KL 散度），[[Mathematics-Universe/04-信息论]]（熵与交叉熵的定义）
+⬆ 上游: [数理统计基础详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/05-概率论与数理统计/06-数理统计基础/数理统计基础详解.md)（MLE 的数学推导），[随机事件与概率详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/05-概率论与数理统计/01-随机事件与概率/随机事件与概率详解.md)（Bayes 公式 → KL 散度），[04-信息论](../../PART-01-数学基础回顾/04-信息论（机器学习视角）.md)（熵与交叉熵的定义）
 
-⬇ 下游: [[正态分布 → Xavier/He 初始化]]（轴线B第三篇——交叉熵 + softmax 的初始化）
+⬇ 下游: [He 初始化](03-正态分布→Xavier-He初始化.md)（轴线B第三篇——交叉熵 + softmax 的初始化）
 
-↔ 横联: [[01-Bayes定理→贝叶斯神经网络]]（MLE vs 贝叶斯推断的对偶关系），[[04-损失函数]]（PART-02中的损失函数全景）
+↔ 横联: [01-Bayes定理→贝叶斯神经网络](01-Bayes定理→贝叶斯神经网络.md)（MLE vs 贝叶斯推断的对偶关系），[05-损失函数](../../PART-02-深度学习核心/05-损失函数.md)（PART-02中的损失函数全景）
 
 🔗 跨域: NLP（语言建模的交叉熵），推荐系统（排序损失），强化学习（策略梯度的对数似然）
 
