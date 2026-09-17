@@ -17,7 +17,7 @@ $$f(\mathbf{x}) = f(\mathbf{x}_0) + \nabla f(\mathbf{x}_0)^T(\mathbf{x} - \mathb
 - $H(\mathbf{x}_0)$：Hessian 矩阵（二阶）
 - $H_{ij} = \frac{\partial^2 f}{\partial x_i \partial x_j}$
 
-> 📖 多元 Taylor 展开：[[Mathematics-Universe/03-高等数学/02-一元微分学/一元微分学详解.md#24-Taylor展开万能近似]]
+> 📖 多元 Taylor 展开：[一元微分学详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/03-高等数学/02-一元微分学/一元微分学详解.md#三taylor公式)
 
 ### 1.2 为什么二阶信息重要
 
@@ -62,7 +62,7 @@ $$f(\mathbf{x}) \approx f(\mathbf{x}^*) + \frac{1}{2}(\mathbf{x} - \mathbf{x}^*)
 | 特征值有正有负（不定） | 鞍点 |
 | 有特征值 = 0 | 需要更高阶分析 |
 
-> 📖 正定性判别：[[Mathematics-Universe/04-线性代数/06-二次型/二次型详解.md#63-正定性判别]]
+> 📖 正定性判别：[二次型详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/04-线性代数/06-二次型/二次型详解.md#31-正定判别)
 
 ---
 
@@ -74,7 +74,7 @@ $$f(\mathbf{x}) \approx f(\mathbf{x}^*) + \frac{1}{2}(\mathbf{x} - \mathbf{x}^*)
 
 $$m_k(\mathbf{p}) = f(\mathbf{x}_k) + \nabla f(\mathbf{x}_k)^T \mathbf{p} + \frac{1}{2}\mathbf{p}^T H(\mathbf{x}_k) \mathbf{p}$$
 
-**Newton 步**：最小化这个二次模型：
+**当 Hessian 正定时**，Newton 步最小化这个二次模型；Hessian 不定时驻点不是最小值：
 
 $$\mathbf{p}_k = \arg\min_{\mathbf{p}} m_k(\mathbf{p})$$
 
@@ -97,7 +97,7 @@ $$\mathbf{x}_{k+1} = \mathbf{x}_k + \mathbf{p}_k = \mathbf{x}_k - H(\mathbf{x}_k
 | 每步计算 | $O(n)$ | $O(n^3)$（Hessian 求逆） |
 | 内存 | $O(n)$ | $O(n^2)$（存储 Hessian） |
 
-**Newton 法的收敛速度更快**——在极小值附近是二次收敛（误差平方衰减），而梯度下降是线性收敛（误差线性衰减）。
+这些速度需要条件：梯度下降在光滑强凸目标及适当步长下线性收敛；Newton 在非退化极小点附近、Hessian 足够光滑且初值足够近时二次收敛。一般凸或非凸函数不具备这些保证。
 
 **代价**：存储和求逆 $H$ 需要 $O(n^2)$ 内存和 $O(n^3)$ 计算。对于百万参数网络，这是不可行的。
 
@@ -106,18 +106,18 @@ $$\mathbf{x}_{k+1} = \mathbf{x}_k + \mathbf{p}_k = \mathbf{x}_k - H(\mathbf{x}_k
 ```python
 import torch
 
-def newton_step(f, x, lr=1.0):
+def newton_step(f_value, x):
     """
     一步 Newton 法
-    f: 标量函数，返回标量
+    f_value: 已在 x 处计算的标量张量
     x: 参数向量 (n,)
     """
     # 一阶：梯度
-    grad = torch.autograd.grad(f, x, create_graph=True)[0]  # (n,)
+    grad = torch.autograd.grad(f_value, x, create_graph=True)[0]  # (n,)
 
     # 二阶：Hessian（通过逐元素二阶导数）
     n = x.shape[0]
-    H = torch.zeros(n, n)
+    H = x.new_zeros(n, n)
     for i in range(n):
         H[i] = torch.autograd.grad(grad[i], x, retain_graph=True)[0]
 
@@ -125,7 +125,7 @@ def newton_step(f, x, lr=1.0):
     # 实际用线性求解（更稳定）
     p = torch.linalg.solve(H, -grad)
 
-    # 阻尼 Newton（保证下降）
+    # 阻尼并不自动保证下降；正式算法需线搜索或信赖域
     # 如果 f(x + p) > f(x)，说明步长太大，缩小
     return p
 
@@ -138,7 +138,7 @@ x_init = torch.tensor([-1.0, 1.0], requires_grad=True)
 
 for i in range(10):
     f = rosenbrock(x_init[0], x_init[1])
-    p = newton_step(f, x_init, lr=1.0)
+    p = newton_step(f, x_init)
     with torch.no_grad():
         x_init += p * 0.1  # 阻尼因子
     print(f"Step {i}: f = {f.item():.6f}, x = ({x_init[0]:.4f}, {x_init[1]:.4f})")
@@ -194,8 +194,8 @@ optimizer.step(closure)
 | 优化器 | 核心思想 | 二阶近似 | 适用 |
 |--------|---------|---------|------|
 | SGD | 一阶梯度 + 动量 | 无 | 大规模训练 |
-| **Adam** | 自适应学习率 | 对角 Hessian 近似（逐参数） | 大多数场景 |
-| **AdaGrad** | 累积梯度平方 | 对角 Hessian | 稀疏特征 |
+| **Adam** | 自适应学习率 | 梯度二阶矩预条件（不等于 Hessian） | 大多数场景 |
+| **AdaGrad** | 累积梯度平方 | 梯度二阶矩预条件 | 稀疏特征 |
 | **AdamW** | Adam + 解耦权重衰减 | 同上 | 大模型训练 |
 | L-BFGS | 秩2更新的拟 Newton | 满秩 Hessian 近似 | 小模型/微调 |
 
@@ -203,7 +203,7 @@ optimizer.step(closure)
 - Adam 维护每个参数的梯度的一阶矩（动量）和二阶矩（梯度平方的移动平均）
 - $v_t = \beta_2 v_{t-1} + (1-\beta_2) g_t^2$
 - 更新：$w_t = w_{t-1} - \frac{\eta}{\sqrt{\hat{v}_t} + \epsilon} \hat{m}_t$
-- 分母 $\sqrt{\hat{v}_t}$ 的作用类似于**对角 Hessian 的近似**——参数更新量反比于该参数的"曲率"（梯度变化快慢）
+- 分母 $\sqrt{\hat{v}_t}$ 按历史梯度尺度预条件。梯度的二阶矩不是损失的二阶导数，Adam 仍是一阶方法，不能一般视为 Hessian 的对角近似
 
 ---
 
@@ -272,7 +272,7 @@ $$H = Q\Lambda Q^T$$
   - $|\lambda_i|$ 越大：曲率越陡
 - **特征向量 $\mathbf{q}_i$**：**主曲率方向**
 
-**条件数** $\kappa(H) = \lambda_{\max}/\lambda_{\min}$：
+**正定 Hessian 的条件数** $\kappa_2(H) = \lambda_{\max}/\lambda_{\min}$（不定情形要用奇异值，奇异时条件数无穷）：
 - $\kappa \approx 1$：接近球面（所有方向曲率相同），优化容易
 - $\kappa \gg 1$：像细长的椭球（某些方向极陡，某些极平），优化困难
 
@@ -315,7 +315,7 @@ f(x) ≈ f(x₀) + ∇f·Δx              ↓
   收敛慢（线性）                    收敛快（二次）
 ```
 
-**一句话总结**：Taylor 展开告诉我们，目标函数在局部可以用"线性函数（梯度）"或"二次函数（梯度+Hessian）"近似。梯度下降只用线性近似，Newton 法用二次近似。二次近似更精确，但计算代价大。现代深度学习优化器（Adam等）是二者的折中——用对角近似（逐参数自适应学习率）来低成本地估计"曲率"。
+**一句话总结**：Taylor 展开告诉我们，目标函数在局部可以用"线性函数（梯度）"或"二次函数（梯度+Hessian）"近似。梯度下降只用线性近似，Newton 法用二次近似。二次近似更精确，但计算代价大。Adam 等一阶方法用梯度统计调节各参数步长；L-BFGS、K-FAC 等方法才显式构造曲率近似，不能混为一谈。
 
 ---
 
@@ -332,19 +332,19 @@ f(x) ≈ f(x₀) + ∇f·Δx              ↓
 - [PyTorch Hessian](https://pytorch.org/docs/stable/generated/torch.autograd.functional.hessian.html) — 自动计算 Hessian（小模型用）
 
 ### 关联文章
-- [[梯度 → 反向传播]]（轴线C上一篇）
-- [[Lagrange乘数 → 约束优化]]（轴线C第三篇）
-- [[PART-04/梯度消失爆炸的数学根源]]
+- [梯度 → 反向传播](01-梯度→反向传播.md)（轴线C上一篇）
+- [Lagrange乘数 → 约束优化](03-Lagrange乘数→约束优化.md)（轴线C第三篇）
+- [梯度消失爆炸的数学根源](../../PART-04-从理论到工程/02-梯度消失爆炸的数学根源.md)
 
 ---
 
 ## 联系网络
 
-⬆ 上游: [[Mathematics-Universe/03-高等数学/02-一元微分学/一元微分学详解.md]]（Taylor展开），[[Mathematics-Universe/03-高等数学/04-多元微分学/多元微分学详解.md]]（多元微分·Hessian），[[Mathematics-Universe/04-线性代数/06-二次型/二次型详解.md]]（正定判别·Hessian几何意义）
+⬆ 上游: [一元微分学详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/03-高等数学/02-一元微分学/一元微分学详解.md)（Taylor展开），[多元微分学详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/03-高等数学/04-多元微分学/多元微分学详解.md)（多元微分·Hessian），[二次型详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/04-线性代数/06-二次型/二次型详解.md)（正定判别·Hessian几何意义）
 
-⬇ 下游: [[Lagrange乘数 → 约束优化]]
+⬇ 下游: [Lagrange乘数 → 约束优化](03-Lagrange乘数→约束优化.md)
 
-↔ 横联: [[01-梯度→反向传播]]（反向传播计算梯度），[[05-学习率调度 → 凸优化步长策略]]
+↔ 横联: [01-梯度→反向传播](01-梯度→反向传播.md)（反向传播计算梯度），[学习率调度（优化算法）](../../PART-02-深度学习核心/03-优化算法.md)
 
 🔗 跨域: 科学计算（Newton法求解非线性方程），经济学（效用最大化·二阶条件），控制理论（LQR用Hessian近似）
 

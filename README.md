@@ -1,5 +1,7 @@
 # 纯数学到深度学习：用应用数学串联数学知识与深度学习教程
 
+**[在线阅读](https://caciniep.github.io/math-to-deep-learning/)** · [配套读本](https://caciniep.github.io/Mathematics-Universe/) · [构建与贡献](./CONTRIBUTING.md)
+
 > 同一个数学概念，从纸笔推导（Mathematics-Universe）到 GPU 训练（PyTorch），是一条连续的理解线。
 
 ---
@@ -13,7 +15,7 @@
 | 🪐 **[Mathematics-Universe](https://github.com/CacinieP/Mathematics-Universe)** | 纯数学纵向知识图谱（高中→考研→超纲） | "定理怎么证？概念怎么定义？" |
 | 📡 **math-to-deep-learning**（本仓库） | 数学在 ML 中的应用棱镜 | "这个概念怎么变成模型的一层？代码怎么写？" |
 
-> 📌 本仓库文章中的 `[[Mathematics-Universe/03-高等数学/...]]` 形式链接，均指向母仓库的详细推导。**建议同时 Star 两个仓库，对照阅读。**
+> 📌 本仓库文章的上游引用和联系网络可跳转到母仓库的详细推导。**建议同时 Star 两个仓库，对照阅读。**
 
 ---
 
@@ -21,9 +23,11 @@
 
 ![完成度](https://img.shields.io/badge/完成度-100%25-brightgreen)
 ![正文](https://img.shields.io/badge/正文-38篇-blue)
-![更新](https://img.shields.io/badge/最后更新-2026--08--17-orange)
+![更新](https://img.shields.io/badge/最后更新-2026--09--17-orange)
 
-**最新更新（[2026-08-17] 审核修复）**：依据全量内容审核修复约 110 处数学/代码/链接问题（含补齐 LICENSE、修复目录死链）。前次更新（[2026-07-07] 全量补全）：完成度从 19% → 100%，PART-01 至 PART-05 + APPENDIX 全部填满。详见 [CHANGELOG](./CHANGELOG.md)。
+**最新更新（2026-09-17）**：复核数学条件、代码示例与跨仓库链接，新增可搜索的在线阅读版及构建检查。详见 [本次审核报告](./docs/审核报告-2026-09-17.md)。
+
+**前次更新（[2026-08-17] 审核修复）**：依据全量内容审核修复约 110 处数学/代码/链接问题（含补齐 LICENSE、修复目录死链）。前次更新（[2026-07-07] 全量补全）：完成度从 19% → 100%，PART-01 至 PART-05 + APPENDIX 全部填满。详见 [CHANGELOG](./CHANGELOG.md)。
 
 ---
 
@@ -145,7 +149,7 @@ Mathematics-Universe（纯数学）→ PART-01（ML视角裁剪版）→ PART-03
 | [Mathematics-Universe](https://github.com/CacinieP/Mathematics-Universe) | 纯数学纵向知识图谱 | "定理怎么证？概念怎么定义？" |
 | **math-to-deep-learning** | 数学在ML中的应用棱镜 | "这个概念怎么变成模型的一层？代码怎么写？" |
 
-两个仓库通过双向链接互联：本文中的 `[[Mathematics-Universe/03-高等数学/...]]` 指向纯数学仓库的详细推导。
+两个仓库通过文章中的标准 Markdown 链接互联；在线阅读版会自动跳转到配套读本的对应章节。
 
 ## 难度标注
 

@@ -35,7 +35,7 @@ $$A \approx U_k \Sigma_k V_k^T$$
 
 这是**最低秩近似**——在秩为 $k$ 的所有矩阵中，$U_k\Sigma_k V_k^T$ 是离 $A$ 最近的（Frobenius范数意义下）。
 
-> 📖 矩阵分解的背景：[[Mathematics-Universe/04-线性代数/02-矩阵/矩阵详解.md#23-矩阵分解因式分解的矩阵版]]
+> 📖 矩阵分解的背景：[矩阵详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/04-线性代数/线性代数全貌.md#23-矩阵分解因式分解的矩阵版)
 
 ### 1.3 SVD 与特征值分解的关系
 
@@ -83,7 +83,7 @@ print(np.max(np.abs(U.T @ U - np.eye(2))))  # 0.0 —— U 列正交
 
 $$A \approx \sqrt{3}\, u_2 v_2^T = \begin{pmatrix} 0 & 1 \\ 0 & 1 \\ 0 & 1 \end{pmatrix}$$
 
-误差恰好为 $\|A - A_1\|_F = \sqrt{2} = \sigma_2$——这正是 Eckart-Young 定理：最优秩 1 近似的 Frobenius 误差就是被丢弃的最大奇异值。
+误差恰好为 $\|A - A_1\|_F = \sqrt{2} = \sigma_2$——这正是 Eckart-Young 定理：本例只丢弃一个非零奇异值，所以 Frobenius 误差等于它；一般应为所有被丢弃奇异值平方和的平方根，谱范数误差才是其中最大值。
 
 ---
 
@@ -127,22 +127,22 @@ $$R \approx PQ^T$$
 - $Q \in \mathbb{R}^{n \times k}$：物品潜在因子矩阵
 - $k$：潜在因子数量（通常 10-200，远小于 $m$ 和 $n$）
 
-**这就是截断SVD！** 只是名字不同：
+**两者共享低秩因子形式，但优化问题不一定相同**：
 - 矩阵分解视角：$R \approx U_k\Sigma_k V_k^T$
 - 推荐系统视角：$R \approx PQ^T$
 
-两者等价（$\Sigma$ 可以吸收到 $P$ 或 $Q$ 中）。
+对完整矩阵的无正则 Frobenius 重构，截断 SVD 给出最优因子解（$\Sigma$ 可吸收到因子中）。有缺失评分或正则化时，通常只在已观察项上优化，不能直接等同于对填零矩阵做 SVD。
 
 ### 2.3 为什么 SVD 适用于推荐系统
 
 | 挑战 | SVD 的解决方案 |
 |------|---------------|
-| 评分矩阵极度稀疏 | 截断SVD用低秩假设填充缺失值 |
+| 评分矩阵极度稀疏 | 在已观察评分上拟合低秩因子；直接填零 SVD 会把缺失当评分 |
 | 数据维度极高 | 降维到 $k$ 维潜在空间 |
-| 冷启动（新用户无评分） | 用少量已知评分就能推断潜在向量 |
-| 可解释性 | 每个潜在因子对应一个"隐含主题"（动作/文艺/年代...） |
+| 冷启动（新用户无评分） | 需已有评分或内容/用户侧信息；纯协同过滤无法解决零评分冷启动 |
+| 可解释性 | 潜在因子可辅助解释，但坐标可旋转，不保证逐维有明确语义 |
 
-> 📖 潜在因子模型与概率的联系：[[Mathematics-Universe/05-概率论与数理统计/02-随机变量及其分布/随机变量及其分布.md#23-随机变量函数的分布]]
+> 📖 潜在因子模型与概率的联系：[随机变量及其分布](https://github.com/CacinieP/Mathematics-Universe/blob/main/05-概率论与数理统计/02-随机变量及其分布/随机变量及其分布详解.md#三随机变量函数的分布)
 
 ### 2.4 手写矩阵分解推荐
 
@@ -160,12 +160,15 @@ def matrix_factorization(R, k=10, lr=0.01, epochs=1000, mask=None):
     device = R.device
 
     # 1. 初始化（小随机值）
-    P = torch.randn(m, k, device=device) * 0.1
-    Q = torch.randn(n, k, device=device) * 0.1
+    P = torch.randn(m, k, device=device, dtype=R.dtype) * 0.1
+    Q = torch.randn(n, k, device=device, dtype=R.dtype) * 0.1
 
     # 2. 评分掩码（只看有评分的元素）
     if mask is None:
         mask = R > 0
+
+    if not mask.any():
+        raise ValueError("at least one observed rating is required")
 
     # 3. 优化
     for epoch in range(epochs):
@@ -214,7 +217,7 @@ R_pred = P_learned @ Q_learned.T
 | `(R - R_hat) * mask` | 只看有评分的元素 | 稀疏矩阵的处理 |
 | `error @ Q` | $\nabla_P = -2(R - PQ^T)Q$ | 对 $P$ 的梯度 |
 | `error.T @ P` | $\nabla_Q = -2(R - PQ^T)^TP$ | 对 $Q$ 的梯度 |
-| `0.01 * (P**2).sum()` | $\lambda\|P\|_2^2$ | L2正则（Tikhonov正则化） |
+| `0.01 * (P**2).sum()` | $\lambda\|P\|_F^2$ | L2正则（Tikhonov正则化） |
 
 ---
 
@@ -244,6 +247,8 @@ def user_based_cf(R, target_user, target_item, k=10):
         if other_user == target_user:
             continue
         other_ratings = R[other_user]
+        if other_ratings[target_item] <= 0:
+            continue  # 缺失评分不能作为 0 加入加权预测
         common = mask & (other_ratings > 0)
         if common.sum() < 2:
             continue
@@ -290,7 +295,7 @@ def user_based_cf(R, target_user, target_item, k=10):
 | 注意力 | $QK^T$ | 查询与键的相关性 |
 | Transformer | $\text{softmax}(QK^T/\sqrt{d_k})V$ | 加权求和 |
 
-> 📖 内积的完整故事：[[Mathematics-Universe/01-高中数学基础/01-函数与代数/函数与代数详解.md#22-函数复合与反函数]] 和 [[Mathematics-Universe/08-数学联系网络/跨分支深层联系.md#14-Fourier分析-无穷维线性代数]]
+> 📖 内积的完整故事：[函数与代数详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/01-高中数学基础/01-函数与代数/函数与代数详解.md#21-函数的复合与反函数) 和 [跨分支深层联系](https://github.com/CacinieP/Mathematics-Universe/blob/main/08-数学联系网络/跨分支深层联系.md#14-fourier分析--无穷维线性代数)
 
 ---
 
@@ -337,7 +342,7 @@ word_embeddings_svd = U[:, :k] @ torch.diag(S[:k])  # (vocab, k)
 # Word2Vec（神经网络的等价视角）
 # 本质上是在做：给定词 w 预测上下文 c 的概率
 # 最优的嵌入矩阵 = 词-上下文共现矩阵的因子分解
-# 所以 word2vec ≈ 带噪声目标的 SVD
+# SGNS 在特定理想化条件下与移位 PMI 矩阵分解相关，通常不等价于 SVD
 ```
 
 ---
@@ -374,7 +379,7 @@ for i, e in enumerate(energy):
 ### 5.2 奇异值的数值稳定性
 
 奇异值的大小顺序在数值上非常稳定：
-- 即使矩阵有微小的扰动（舍入误差），$\sigma_1 \geq \sigma_2 \geq \cdots$ 的顺序不会改变
+- 按大小重排后的奇异值对扰动有稳定界；重根附近的奇异向量仍可能大幅旋转
 - 但特征值可能因为 $A$ 不是对称的而出现复数（当 $A$ 不是方阵时，特征值根本不存在）
 
 **SVD vs 特征值分解的稳定性对比**：
@@ -384,9 +389,9 @@ for i, e in enumerate(energy):
 | 矩阵要求 | 方阵（通常对称） | 任意 $m \times n$ |
 | 特征值/奇异值 | 可能复数 | 总是非负实数 |
 | 排序稳定性 | 特征向量可能翻转 | 奇异值总唯一（重数意义下）；不唯一的是奇异向量（列符号可变） |
-| 条件数 | $\kappa(A) = \|\lambda_{\max}\|/\|\lambda_{\min}\|$（仅对正规矩阵成立）；一般矩阵的 2-范数条件数应取 $\sigma_{\max}/\sigma_{\min}$ | $\kappa(A) = \sigma_{\max}/\sigma_{\min}$ |
+| 条件数 | $\kappa(A) = \max_i\lvert\lambda_i\rvert/\min_i\lvert\lambda_i\rvert$（仅对正规矩阵成立）；一般矩阵的 2-范数条件数应取 $\sigma_{\max}/\sigma_{\min}$ | $\kappa(A) = \sigma_{\max}/\sigma_{\min}$ |
 
-> 📖 数值稳定性背景：[[Mathematics-Universe/06-超纲拓展/数值分析.md]]
+> 📖 数值稳定性背景：[数值分析](https://github.com/CacinieP/Mathematics-Universe/blob/main/06-超纲拓展/数值分析.md)
 
 ---
 
@@ -454,19 +459,19 @@ SVD:            A = UΣV^T          ← A 可以是任意形状
 - [LightFM](https://github.com/lyst/lightfm) — 混合推荐系统（矩阵分解 + 内容特征）
 
 ### 关联文章
-- [[特征值分解 → PCA → 自编码器]]（轴线A上一篇）
-- [[矩阵指数 → Neural ODE → 连续深度网络]]（轴线A第三篇）
-- [[QR分解 → 数值稳定的线性求解]]（轴线A后续）
+- [特征值分解 → PCA → 自编码器](01-特征值分解→PCA→自编码器.md)（轴线A上一篇）
+- [矩阵指数 → Neural ODE → 连续深度网络](03-矩阵指数→Neural-ODE→连续深度网络.md)（轴线A第三篇）
+- [QR分解 → 数值稳定的线性求解](../../PART-04-从理论到工程/01-数值稳定性.md)（轴线A后续）
 
 ---
 
 ## 联系网络
 
-⬆ 上游: [[Mathematics-Universe/04-线性代数/02-矩阵/矩阵详解.md]]（矩阵分解），[[Mathematics-Universe/04-线性代数/05-特征值与特征向量/特征值与特征向量详解.md]]（SVD与特征值的关系）
+⬆ 上游: [矩阵详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/04-线性代数/02-矩阵/矩阵详解.md)（矩阵分解），[特征值与特征向量详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/04-线性代数/05-特征值与特征向量/特征值与特征向量详解.md)（SVD与特征值的关系）
 
-⬇ 下游: [[矩阵指数 → Neural ODE → 连续深度网络]]（轴线A第三篇）
+⬇ 下游: [矩阵指数 → Neural ODE → 连续深度网络](03-矩阵指数→Neural-ODE→连续深度网络.md)（轴线A第三篇）
 
-↔ 横联: [[特征值分解 → PCA → 自编码器]]（轴线A上一篇，SVD是PCA的推广）
+↔ 横联: [特征值分解 → PCA → 自编码器](01-特征值分解→PCA→自编码器.md)（轴线A上一篇，SVD是PCA的推广）
 
 🔗 跨域: 推荐系统（Netflix/Amazon/Spotify），NLP（LSA词嵌入），图像处理（图像压缩：JPEG 压缩基于 8×8 DCT 变换+量化，并非 SVD；但 SVD 低秩截断是另一种经典的图像压缩思路，上文演示的即是），生物信息学（基因表达数据降维）
 

@@ -1,0 +1,92 @@
+name: Reading site
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          path: source
+          persist-credentials: false
+      - name: Check out companion content for link validation
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: CacinieP/Mathematics-Universe
+          ref: main
+          path: peer
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: source/requirements-site.txt
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: source/package-lock.json
+      - name: Install pinned site dependencies
+        working-directory: source
+        run: |
+          python -m pip install -r requirements-site.txt
+          npm ci --ignore-scripts
+      - name: Test, prepare, build and check every page
+        working-directory: source
+        run: |
+          python -m unittest discover -s scripts -p 'test_site.py'
+          python scripts/prepare_site.py --peer ../peer
+          python -m mkdocs build --strict
+          python scripts/check_site.py
+          node scripts/check_math.cjs
+      - name: Upload reading site
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: source/site
+
+  examples:
+    name: CPU example regressions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-examples.txt
+      - name: Install CPU dependencies and verify documented examples
+        run: |
+          python -m pip install torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r requirements-examples.txt
+          python scripts/test_examples.py
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: [build, examples]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

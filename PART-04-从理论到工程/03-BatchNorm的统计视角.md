@@ -14,7 +14,7 @@ $$\tilde X = \frac{X - \mathbb{E}[X]}{\sqrt{\text{Var}(X)}}$$
 
 标准化后 $\mathbb{E}[\tilde X] = 0$，$\text{Var}(\tilde X) = 1$。**消除尺度和偏移差异**，让不同特征在同一量纲下比较。
 
-> 📖 期望与方差：[[Mathematics-Universe/05-概率论与数理统计/04-数字特征/数字特征详解.md]]
+> 📖 期望与方差：[数字特征详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/05-概率论与数理统计/04-数字特征/数字特征详解.md)
 
 ### 1.2 白化（多元情形）
 
@@ -32,7 +32,7 @@ BN 不算完整协方差，只对每个特征维度**独立**标准化：
 
 $$\tilde x_{i,j} = \frac{x_{i,j} - \mu_j}{\sqrt{\sigma_j^2 + \epsilon}}$$
 
-其中 $\mu_j, \sigma_j^2$ 是 batch 内第 $j$ 维特征的均值方差。**忽略特征间相关性**，只对齐边缘分布——计算廉价。
+其中 $\mu_j, \sigma_j^2$ 是 batch 内第 $j$ 维特征的均值方差。**忽略特征间相关性**，只调整各维均值和方差，并不保证边缘分布形状一致——计算廉价。
 
 ---
 
@@ -101,7 +101,7 @@ BN:       ■      □    ■     (在 batch+空间 上归一化)
 LN:       □      ■    □     (在特征 上归一化)
 ```
 
-> 📖 LayerNorm 在 Transformer：[[轴线D/03-正交基→残差与变换]]
+> 📖 LayerNorm 在 Transformer：[03-正交基→残差与变换](../PART-03-专题映射/轴线D-函数逼近/03-正交基→残差与变换.md)
 
 ---
 
@@ -116,7 +116,9 @@ bn = nn.BatchNorm1d(128)     # 对 128 维特征做 BN
 ln = nn.LayerNorm(512)       # Transformer 标配
 ```
 
-### 5.2 手写 BN（理解内部）
+### 5.2 手写 BN 的统计部分（教学用）
+
+下面仅展示 CPU 上的统计计算；`gamma/beta` 不是注册参数，不能作为可训练层的替代。完整训练应使用 `nn.BatchNorm1d`。
 
 ```python
 import torch
@@ -158,7 +160,7 @@ model.eval()    # 关闭 dropout + BN 用移动平均
 
 BN 的 batch 统计引入了**随机性**（每个 mini-batch 的 $\mu, \sigma$ 不同），这有轻微正则效果——类似 Dropout。所以用 BN 的网络往往可以减少或去掉 Dropout。
 
-> 📖 正则化：[[PART-02/04-正则化]]
+> 📖 正则化：[04-正则化](../PART-02-深度学习核心/04-正则化.md)
 
 ---
 
@@ -177,7 +179,7 @@ BN 的 batch 统计引入了**随机性**（每个 mini-batch 的 $\mu, \sigma$ 
 │  BatchNorm                                                  │
 │  训练用 batch 统计, 推理用移动平均                          │
 │  缓解 ICS, 让损失面平滑, 大学习率可行                       │
-│  可学 γ,β 恢复任意分布; 副作用: 轻微正则                    │
+│  可学 γ,β 调整均值与尺度; 副作用: 轻微正则                    │
 └──────────────────────────┬───────────────────────────────┘
                            │ 工程实现
                            ▼
@@ -212,18 +214,18 @@ BN = 每个 mini-batch 把激活去均值除标准差
 - **Ba et al. (2016)** "Layer Normalization"
 
 ### 关联文章
-- [[01-数值稳定性]]，[[02-梯度消失爆炸的数学根源]]（BN 缓解这些问题）
-- [[PART-02/04-正则化]]（BN 的正则副作用）
+- [01-数值稳定性](01-数值稳定性.md)，[02-梯度消失爆炸的数学根源](02-梯度消失爆炸的数学根源.md)（BN 缓解这些问题）
+- [04-正则化](../PART-02-深度学习核心/04-正则化.md)（BN 的正则副作用）
 
 ---
 
 ## 联系网络
 
-⬆ 上游：[[Mathematics-Universe/05-概率论与数理统计/04-数字特征/数字特征详解.md]]（均值方差协方差）
+⬆ 上游：[数字特征详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/05-概率论与数理统计/04-数字特征/数字特征详解.md)（均值方差协方差）
 
-⬇ 下游：[[04-注意力机制的线性代数本质]]，[[05-Transformer的谱分析]]（Transformer 里 LayerNorm）
+⬇ 下游：[04-注意力机制的线性代数本质](04-注意力机制的线性代数本质.md)，[05-Transformer的谱分析](05-Transformer的谱分析.md)（Transformer 里 LayerNorm）
 
-↔ 横联：[[轴线A/01-特征值分解→PCA→自编码器]]（PCA 是完整白化）
+↔ 横联：[01-特征值分解→PCA→自编码器](../PART-03-专题映射/轴线A-矩阵分解/01-特征值分解→PCA→自编码器.md)（PCA 去相关后还需按主成分标准差缩放，才是白化）
 
 🔗 跨域：信号处理（自动增益控制）、统计学（z-score 标准化）
 

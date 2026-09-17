@@ -1,6 +1,6 @@
 # RLHF 的博弈论视角
 
-> RLHF 不只是"用人类反馈训练"。博弈论里，它可以被看作**双人博弈**：人类（或奖励模型）设定目标，策略（语言模型）最大化奖励。问题在于——如果纯最大化奖励，策略会**reward hacking**（钻空子）。但 KL 正则的 RLHF 本质是**单智能体约束优化**（目标函数自身即可视为平凡的势函数）；潜在博弈框架在此不提供额外收敛保证，PPO 的收敛性需另行分析。
+> RLHF 不只是"用人类反馈训练"。博弈论里，可借用多方目标冲突的视角讨论人类偏好与策略优化。过度最大化有缺陷的奖励模型可能导致 **reward hacking**（钻空子）。但固定奖励下，KL 正则的 RLHF 是**单智能体正则化优化**（目标函数自身即可视为平凡的势函数）；潜在博弈框架在此不提供额外收敛保证，PPO 的收敛性需另行分析。
 
 **难度**：[前沿]（需要博弈论 + 强化学习 + KL 散度）
 
@@ -16,7 +16,7 @@
 
 $$u_A(\pi_A^*, \pi_B^*) \geq u_A(\pi_A, \pi_B^*) \quad \forall \pi_A$$
 
-**意义**：纳什均衡是"谁都不想先变"的稳定状态。
+对玩家 B 也须满足相应的不等式。**意义**：纳什均衡是无人能靠单方面偏离改善效用的状态，不等于学习动态必然收敛。
 
 > 📖 博弈论基础：纳什均衡、势博弈——Monderer & Shapley 1996
 
@@ -26,13 +26,13 @@ $$u_A(\pi_A^*, \pi_B^*) \geq u_A(\pi_A, \pi_B^*) \quad \forall \pi_A$$
 
 $$u_i(\pi_i', \pi_{-i}) - u_i(\pi_i, \pi_{-i}) = \Phi(\pi_i', \pi_{-i}) - \Phi(\pi_i, \pi_{-i})$$
 
-**性质**：潜在博弈保证**梯度/更新收敛到纳什均衡**（最大化 $\Phi$）。这是 RLHF 训练稳定性的理论根基。
+**性质**：有限势博弈的严格单方改进路径会终止于纯策略纳什均衡；连续策略、任意步长的梯度更新或 PPO 不自动满足这一条件。势函数只能给出特定更新规则下的结论，不能作为标准 RLHF 的通用收敛保证。
 
 ---
 
 ## 二、RLHF 的博弈结构
 
-### 2.1 两个玩家
+### 2.1 奖励模型与策略的角色
 
 - **奖励模型 RM**：代表人类偏好，给出标量奖励 $r(x, y)$
 - **策略 $\pi$**：语言模型，生成回答 $y$，目标 $\max \mathbb{E}[r(x, y)]$
@@ -53,11 +53,11 @@ $$\max_\pi \mathbb{E}_{x, y\sim\pi}[r(x, y)]$$
 
 $$\max_\pi \mathbb{E}_{x, y\sim\pi}[r(x, y)] - \beta\,D_{\text{KL}}(\pi(\cdot|x) \| \pi_{\text{ref}}(\cdot|x))$$
 
-**博弈论解读**：
+**优化解读**（奖励模型固定时只有策略在优化，并非双玩家同时行动）：
 - 第一项：策略想最大化 RM 奖励
 - 第二项：策略不能离参考模型 $\pi_{\text{ref}}$ 太远（保持语言能力）
 
-**KL 正则的 RLHF 本质是单智能体约束优化**（目标函数自身即可视为平凡的势函数）；潜在博弈框架在此不提供额外收敛保证，PPO 的收敛性需另行分析。
+**固定奖励下，KL 正则的 RLHF 是单智能体正则化优化**（目标函数自身即可视为平凡的势函数）；潜在博弈框架在此不提供额外收敛保证，PPO 的收敛性需另行分析。
 
 ---
 
@@ -65,11 +65,11 @@ $$\max_\pi \mathbb{E}_{x, y\sim\pi}[r(x, y)] - \beta\,D_{\text{KL}}(\pi(\cdot|x)
 
 ### 3.1 KL 目标的收敛性
 
-强凹性仅对**表格式策略空间**（按 L2 度量，且限于内部——不触及确定性策略边界）成立：此时 KL 项强凸使目标**强凹**，存在唯一最优解
+在有限表格式策略的概率单纯形上，KL 正则可使目标严格凹，从而有唯一最优分布；这不等于用任意优化算法都会收敛
 
 $$\pi^* = \arg\max_\pi \mathbb{E}[r] - \beta\,D_{\text{KL}}(\pi \| \pi_{\text{ref}})$$
 
-但对**参数化语言模型与 PPO 无此定理保证**——收敛性需另行分析。
+以上需 $\beta>0$、有限动作集、有限奖励且参考策略在可选动作上为正。对**参数化语言模型与 PPO 无此收敛定理保证**。
 
 ### 3.2 闭式解
 
@@ -77,14 +77,14 @@ $$\pi^*(y|x) \propto \pi_{\text{ref}}(y|x) \exp(r(x, y)/\beta)$$
 
 **这是 DPO 的理论基础**——直接偏好优化利用此闭式关系，绕过 RL。
 
-> 📖 DPO 与互信息：[[轴线E/03-互信息→RLHF]]
+> 📖 DPO 与互信息：[03-互信息→RLHF](../PART-03-专题映射/轴线E-信息论/03-互信息→RLHF.md)
 
 ### 3.3 β 的权衡
 
-- $\beta \to \infty$：策略 = 参考模型（不学偏好，但安全）
-- $\beta \to 0$：纯最大化奖励（学偏好，但 reward hacking）
+- $\beta \to \infty$：策略 = 参考模型（不学偏好，但仅保持参考行为，不保证安全）
+- $\beta \to 0^+$：更接近纯奖励最大化，增加过度优化奖励模型的风险；并非必然发生 reward hacking
 
-**实践**：$\beta \in [0.01, 0.5]$，在偏好对齐与稳定性间平衡。
+**实践**：$\beta$ 的量级取决于奖励尺度、序列长度以及 KL 按 token 还是序列归一化，不能给出脱离这些约定的通用范围。应结合奖励、KL 与独立偏好评估调参。
 
 ---
 
@@ -108,35 +108,45 @@ $$\max_\pi \sum_k w_k \mathbb{E}[r_k(x,y)] - \beta\,D_{\text{KL}}(\pi\|\pi_{\tex
 
 ### 4.3 自我对弈（Constitutional AI）
 
-Anthropic 的 Constitutional AI：模型**自己生成偏好数据**（按"宪法"自评）。这把 RLHF 变成**自我博弈**——类似 AlphaGo 的自我对弈，但有"宪法"作仲裁。
+Constitutional AI 使用原则指导模型批评、修订及生成偏好数据，属于 AI 反馈训练；这不等于 AlphaGo 式自我对弈，也不自动形成博弈论均衡。
 
 ---
 
 ## 五、工程实现层
 
-### 5.1 PPO 训练循环
+### 5.1 PPO 裁剪代理目标（序列级教学接口）
+
+下面的包装器约定 `logp` 返回每条完整回答的对数概率之和。省略了价值网络、GAE、token 掩码和优化器，只演示一次固定 rollout 的裁剪目标；完整 PPO 还需要这些组件。`old_logp`、参考策略与奖励模型都不参与梯度，KL 惩罚逐样本加入 advantage。
 
 ```python
 import torch
 import torch.nn.functional as F
 
-def ppo_step(policy, ref_policy, rm, prompts, beta=0.1, clip=0.2):
-    # 1. 生成回答
+@torch.no_grad()
+def collect_rollout(policy, ref_policy, rm, prompts, beta=0.1):
     responses, old_logp = policy.generate(prompts, return_logp=True)
-    # 2. 算奖励
+    ref_logp = ref_policy.logp(prompts, responses)
     rewards = rm(prompts, responses)
-    # 3. 算 KL 惩罚(蒙特卡洛估计)
-    with torch.no_grad():
-        ref_logp = ref_policy.logp(prompts, responses)
-    kl = (old_logp - ref_logp).mean()  # 教学简化：常规做法是逐样本/逐 token 计入 advantage，而非批均值标量
-    penalized = rewards - beta * kl
-    # 4. PPO 更新(带 clip 防止策略大跳)
+    advantages = rewards - beta * (old_logp - ref_logp)  # 零 baseline 的简化
+    return responses, old_logp.detach(), advantages.detach()
+
+def ppo_step(policy, ref_policy, rm, prompts, beta=0.1, clip=0.2, rollout=None):
+    # 多轮更新时，显式传入同一个 collect_rollout(...) 返回值。
+    if rollout is None:
+        rollout = collect_rollout(policy, ref_policy, rm, prompts, beta)
+    responses, old_logp, advantages = rollout
     new_logp = policy.logp(prompts, responses)
-    ratio = (new_logp - old_logp).exp()
-    loss = -torch.min(ratio * penalized, 
-                      ratio.clamp(1-clip, 1+clip) * penalized).mean()
-    return loss
+    ratio = (new_logp - old_logp.detach()).exp()
+    advantages = advantages.detach()
+    surrogate = torch.minimum(
+        ratio * advantages,
+        ratio.clamp(1 - clip, 1 + clip) * advantages,
+    )
+    return -surrogate.mean()
+
 ```
+
+多轮更新先调用一次 `rollout = collect_rollout(policy, ref_policy, rm, prompts)`，随后各次 `ppo_step(..., rollout=rollout)` 复用它。只有第一次更新前 ratio 为 1；参数改变后比例才偏离 1，裁剪才起作用。不能在每轮更新前重新采样并重定义旧策略。
 
 ### 5.2 DPO 的简化
 
@@ -158,8 +168,8 @@ def dpo_loss(policy, ref, x, y_win, y_lose, beta=0.1):
 ```
 ┌──────────────────────────────────────────────────────────┐
 │  纯数学                                                    │
-│  博弈论: 纳什均衡, 潜在博弈(收敛保证)                       │
-│  KL 约束: 构成潜在博弈 ⇒ 收敛                               │
+│  博弈论: 纳什均衡、势博弈及其适用条件                       │
+│  KL 正则: 固定奖励下的单策略优化                               │
 │  闭式解: π* ∝ π_ref·exp(r/β) ⇒ DPO 理论基础               │
 │  [[Mathematics-Universe/06-超纲拓展/...]]                  │
 └──────────────────────────┬───────────────────────────────┘
@@ -168,7 +178,7 @@ def dpo_loss(policy, ref, x, y_win, y_lose, beta=0.1):
 ┌──────────────────────────────────────────────────────────┐
 │  RLHF 的博弈结构                                            │
 │  RM(人类代理) vs 策略(语言模型)                             │
-│  无约束 ⇒ reward hacking; KL ⇒ 潜在博弈收敛                │
+│  过度优化可能 reward hacking；KL 限制策略漂移                │
 │  DPO 用闭式解绕过 RL                                        │
 └──────────────────────────┬───────────────────────────────┘
                            │ 工程实现
@@ -185,14 +195,14 @@ def dpo_loss(policy, ref, x, y_win, y_lose, beta=0.1):
 ## 七、直觉总结
 
 ```
-RLHF = 奖励模型 vs 策略 的博弈
+标准 RLHF: 固定奖励模型下优化策略
 无约束: 策略钻 RM 空子(reward hacking)
-加 KL: 策略不能离参考模型太远 ⇒ 潜在博弈 ⇒ 收敛
+加 KL: 惩罚策略偏离参考；不保证 PPO 收敛或安全
 闭式解 π* ∝ π_ref·exp(r/β) ⇒ DPO 绕过 RL
-β 调节: 大=安全不学, 小=学但易 hacking
+β 调节: 大=更接近参考策略，小=更重视奖励；均不保证安全
 ```
 
-**RLHF 是带约束的博弈。** 数学是博弈论 + KL，工程是 PPO/DPO 的实现。
+**固定奖励模型的 RLHF 是带 KL 正则的策略优化。** 博弈论适用于明确定义多方策略与更新的扩展场景，不能替代 PPO/DPO 的具体分析。
 
 ---
 
@@ -201,22 +211,22 @@ RLHF = 奖励模型 vs 策略 的博弈
 ### 论文
 - **Christiano et al. (2017)** "Deep RL from Human Preferences"——RLHF 起源
 - **Ouyang et al. (2022)** "Training language models to follow instructions"（InstructGPT）
-- **Rafailov et al. (2023)** "Direct Preference Optimization"（DPO）
+- [Rafailov et al. (2023), Direct Preference Optimization](https://arxiv.org/abs/2305.18290)（DPO）
 - **Monderer & Shapley (1996)** "Potential Games"——潜在博弈理论
 
 ### 关联文章
-- [[轴线E/03-互信息→RLHF]]（信息论视角的 RLHF）
-- [[轴线E/02-KL散度→信息瓶颈]]（KL 约束的信息论意义）
+- [03-互信息→RLHF](../PART-03-专题映射/轴线E-信息论/03-互信息→RLHF.md)（信息论视角的 RLHF）
+- [02-KL散度→信息瓶颈](../PART-03-专题映射/轴线E-信息论/02-KL散度→信息瓶颈.md)（KL 约束的信息论意义）
 
 ---
 
 ## 联系网络
 
-⬆ 上游：（博弈论基础：纳什均衡、势博弈——Monderer & Shapley 1996），[[轴线E/03-互信息→RLHF]]（信息论视角）
+⬆ 上游：（博弈论基础：纳什均衡、势博弈——Monderer & Shapley 1996），[03-互信息→RLHF](../PART-03-专题映射/轴线E-信息论/03-互信息→RLHF.md)（信息论视角）
 
 ⬇ 下游：大模型对齐、安全训练
 
-↔ 横联：[[轴线E/03-互信息→RLHF]]（互信息与偏好建模）
+↔ 横联：[03-互信息→RLHF](../PART-03-专题映射/轴线E-信息论/03-互信息→RLHF.md)（互信息与偏好建模）
 
 🔗 跨域：经济学（机制设计）、演化生物学（进化博弈）、控制论（约束优化）
 

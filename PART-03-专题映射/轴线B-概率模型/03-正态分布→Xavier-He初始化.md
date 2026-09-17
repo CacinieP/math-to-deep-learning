@@ -24,7 +24,7 @@ $$w_{ij} \sim \mathcal{N}(0, \sigma_w^2)$$
 
 在深度学习中的角色三，核心问题变成了：**$\sigma_w$ 应该设多大？**
 
-> 📖 正态分布的完整性质：[[Mathematics-Universe/05-概率论与数理统计/02-随机变量及其分布/随机变量及其分布.md#23-正态分布最重要的分布]]
+> 📖 正态分布的完整性质：[随机变量及其分布](https://github.com/CacinieP/Mathematics-Universe/blob/main/05-概率论与数理统计/02-随机变量及其分布/随机变量及其分布详解.md#23-正态分布-nmusigma2)
 
 ### 1.2 方差传播（Delta Method）
 
@@ -40,7 +40,7 @@ $$\Sigma_y = A\Sigma A^T$$
 
 **这是神经网络初始化分析的核心工具。**
 
-> 📖 Taylor展开的数学基础：[[Mathematics-Universe/03-高等数学/02-一元微分学/一元微分学详解.md#24-Taylor展开万能近似]]
+> 📖 Taylor展开的数学基础：[一元微分学详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/03-高等数学/02-一元微分学/一元微分学详解.md#三taylor公式)
 
 ---
 
@@ -110,10 +110,10 @@ $$\text{Var}(\delta_{l-1}) = n_{out} \cdot \sigma_w^2 \cdot \text{Var}(\delta_l)
 设 $\text{Var}(\delta_{l-1}) = \text{Var}(\delta_l) = 1$：
 $$\sigma_w = \frac{1}{\sqrt{n_{out}}}$$
 
-**同时满足前向和反向**：
+**在前向和反向之间折中**（扇入与扇出不同时无法同时精确满足）：
 $$\sigma_w = \sqrt{\frac{2}{n_{in} + n_{out}}}$$
 
-这就是 **Xavier 初始化**（也称 Glorot 初始化）的方差。
+这是 **Xavier 初始化**（也称 Glorot 初始化）的标准差；方差是它的平方。
 
 ### 3.2 均匀分布版本
 
@@ -227,14 +227,11 @@ torch.nn.init.kaiming_uniform_(W)  # He 均匀
 
 $$\frac{\partial L}{\partial W^{(1)}} = \frac{\partial L}{\partial h^{(L)}} \cdot \frac{\partial h^{(L)}}{\partial h^{(L-1)}} \cdots \frac{\partial h^{(1)}}{\partial W^{(1)}}$$
 
-**链式法则的乘积效应**：
+**反向信号的统计近似**：在初始化的独立性、零均值等近似下，单坐标梯度方差满足
 
-$$\text{Var}\left(\frac{\partial L}{\partial W^{(1)}}\right) \approx \prod_{l=1}^L \text{Var}\left(\frac{\partial h^{(l)}}{\partial h^{(l-1)}}\right) \cdot \text{Var}\left(\frac{\partial h^{(1)}}{\partial W^{(1)}}\right)$$
+$$\operatorname{Var}(\delta_{l-1})\approx n_{\rm out}\sigma_w^2\,\mathbb E[\sigma'(z_l)^2]\operatorname{Var}(\delta_l).$$
 
-- 如果每层的 $\text{Var}(\text{Jacobian}) < 1$：深层网络 → 梯度指数衰减 → **梯度消失**
-- 如果每层的 $\text{Var}(\text{Jacobian}) > 1$：深层网络 → 梯度指数增长 → **梯度爆炸**
-
-**Xavier/He 初始化通过控制权重方差，把每层的 Jacobian 方差控制在 1 附近，防止梯度在传播中指数衰减或增长。**
+这里包含扇出数量、权重方差与激活导数的二阶矩；不能直接写成“各 Jacobian 元素方差的乘积”。Xavier/He 旨在改善这些统计缩放，并不保证每个样本或每个梯度方向稳定。
 
 ### 5.2 为什么 ReLU 比 sigmoid 好（初始化角度）
 
@@ -242,8 +239,8 @@ $$\text{Var}\left(\frac{\partial L}{\partial W^{(1)}}\right) \approx \prod_{l=1}
 Sigmoid:  σ'(x) = σ(x)(1-σ(x))  ≤ 1/4  （最大在 x=0 处）
 ReLU:     ReLU'(x) = 1 (x>0) 或 0 (x<0)
 
-Sigmoid 的 Jacobian:  每项 ≤ 0.25，100层后: 0.25^100 ≈ 10^-61
-ReLU 的 Jacobian:     每项 = 1（或0），100层后: 1^100 = 1
+Sigmoid 激活导数 ≤ 0.25；完整 Jacobian 还包含权重矩阵
+ReLU 激活导数为 1 或 0；权重与门控连乘仍可使梯度爆炸或消失
 
 这是 ReLU 解决梯度消失问题的原因之一（不是全部原因）
 ```
@@ -314,8 +311,8 @@ plt.savefig('init_comparison.png', dpi=150)
 ```
 
 **预期结果**：
-- Xavier + ReLU：方差逐渐衰减（ReLU 损失一半信号，Xavier 没有补偿）
-- He + ReLU：方差稳定在 1 附近
+- Xavier + tanh：激活方差可能逐层衰减；本实验没有绘制 Xavier + ReLU
+- He + ReLU：二阶矩通常保持同一量级，激活方差不必等于 1，有限宽深网络仍可能漂移
 - 随机小初始化 + ReLU：方差指数衰减到接近 0（梯度消失）
 
 ---
@@ -365,7 +362,7 @@ plt.savefig('init_comparison.png', dpi=150)
 
   每层: h_l = σ(W_l h_{l-1} + b_l)
 
-  信号方差: Var(h_l) = Var(h_{l-1}) × (Jacobian的方差) × Var(W)
+  线性层二阶矩由 fan_in × Var(W) 缩放，非线性再改变其统计
 
   初始化就是设定 Var(W) 使得:
   - 前向传播: Var(h_L) ≈ Var(x)   （信号不爆炸不消失）
@@ -391,19 +388,19 @@ plt.savefig('init_comparison.png', dpi=150)
 - [torchinfo](https://github.com/tyleryep/torchinfo) — 查看每层的输入输出维度，帮助你计算 fan_in/fan_out
 
 ### 关联文章
-- [[MLE → 交叉熵损失]]（轴线B上一篇）
-- [[正态分布 → 权重初始化]] ← 你正在读的
-- [[梯度消失/爆炸的数学根源]]（PART-04）
+- [MLE → 交叉熵损失](02-MLE→交叉熵损失.md)（轴线B上一篇）
+- [正态分布 → 权重初始化](03-正态分布→Xavier-He初始化.md) ← 你正在读的
+- [爆炸的数学根源](../../PART-04-从理论到工程/02-梯度消失爆炸的数学根源.md)（PART-04）
 
 ---
 
 ## 联系网络
 
-⬆ 上游: [[Mathematics-Universe/05-概率论与数理统计/02-随机变量及其分布/随机变量及其分布详解.md]]（正态分布的性质），[[Mathematics-Universe/03-高等数学/02-一元微分学/一元微分学详解.md]]（Taylor展开用于方差传播），[[Mathematics-Universe/06-超纲拓展/数值分析.md]]（数值稳定性）
+⬆ 上游: [随机变量及其分布详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/05-概率论与数理统计/02-随机变量及其分布/随机变量及其分布详解.md)（正态分布的性质），[一元微分学详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/03-高等数学/02-一元微分学/一元微分学详解.md)（Taylor展开用于方差传播），[数值分析](https://github.com/CacinieP/Mathematics-Universe/blob/main/06-超纲拓展/数值分析.md)（数值稳定性）
 
-⬇ 下游: [[PART-04/梯度消失爆炸的数学根源]]
+⬇ 下游: [梯度消失爆炸的数学根源](../../PART-04-从理论到工程/02-梯度消失爆炸的数学根源.md)
 
-↔ 横联: [[02-MLE→交叉熵损失]]（MLE + 正态假设 = MSE损失），[[01-Bayes定理→贝叶斯神经网络]]（权重先验的选择）
+↔ 横联: [02-MLE→交叉熵损失](02-MLE→交叉熵损失.md)（MLE + 正态假设 = MSE损失），[01-Bayes定理→贝叶斯神经网络](01-Bayes定理→贝叶斯神经网络.md)（权重先验的选择）
 
 🔗 跨域: 计算机视觉（CNN的初始化），NLP（Transformer的初始化），强化学习（策略网络的初始化）
 

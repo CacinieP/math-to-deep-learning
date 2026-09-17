@@ -27,9 +27,9 @@ $$e^{At} = I + At + \frac{(At)^2}{2!} + \frac{(At)^3}{3!} + \cdots = \sum_{k=0}^
 |------|------|
 | $e^{at}$ | $e^{At}$ |
 | $\frac{d}{dt}e^{at} = ae^{at}$ | $\frac{d}{dt}e^{At} = Ae^{At}$ |
-| $e^{a(t+s)} = e^{at}e^{as}$ | $e^{A(t+s)} = e^{At}e^{As}$（对同一矩阵 $A$ 无条件成立；需要可交换条件的是 $e^{A+B} = e^Ae^B \Leftrightarrow AB=BA$） |
+| $e^{a(t+s)} = e^{at}e^{as}$ | $e^{A(t+s)} = e^{At}e^{As}$（对同一矩阵 $A$ 无条件成立；需要可交换条件的是 $AB=BA\Rightarrow e^{A+B}=e^Ae^B$（这是充分条件；单次等式不推出交换）） |
 
-> 📖 微分方程解结构与线性代数的联系：[[Mathematics-Universe/03-高等数学/07-常微分方程/常微分方程详解.md]] 和 [[Mathematics-Universe/08-数学联系网络/跨分支深层联系.md#12-微分方程的解结构-线性代数的解结构]]
+> 📖 微分方程解结构与线性代数的联系：[常微分方程详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/03-高等数学/07-常微分方程/常微分方程详解.md) 和 [跨分支深层联系](https://github.com/CacinieP/Mathematics-Universe/blob/main/08-数学联系网络/跨分支深层联系.md#12-微分方程的解结构--线性代数的解结构)
 
 ### 1.2 计算矩阵指数
 
@@ -45,7 +45,7 @@ $$e^{At} = Pe^{\Lambda t}P^{-1} = P\text{diag}(e^{\lambda_1 t}, \ldots, e^{\lamb
 |------|------|------|
 | 导数 | $\frac{d}{dt}e^{At} = Ae^{At} = e^{At}A$ | 矩阵指数是方程的解 |
 | 初始条件 | $e^{A \cdot 0} = I$ | $t=0$ 时是单位矩阵 |
-| 乘积 | $e^{A}e^{B} = e^{A+B}$ ⟺ $AB=BA$ | 不可交换时不能合并 |
+| 乘积 | $AB=BA\Rightarrow e^{A}e^{B}=e^{A+B}$ | 不交换时一般不能合并，不能把充分条件写成充要条件 |
 | 行列式 | $\det(e^{At}) = e^{\text{tr}(A)t}$ | 体积缩放因子 |
 | 逆 | $(e^{At})^{-1} = e^{-At}$ | 可逆，逆就是负时间 |
 | 特征值 | $e^{At}$ 的特征值 = $e^{\lambda_i t}$ | 每个特征值独立演化 |
@@ -85,7 +85,7 @@ $$e^{At} = P\begin{pmatrix} e^{-t} & 0 \\ 0 & e^{-2t} \end{pmatrix}P^{-1} = \beg
 - 特征值 $\lambda > 0$ → 该方向**增长**（不稳定方向）
 - 特征值 $\lambda = 0$ → 该方向**不变**
 
-> 📖 矩阵指数与微分方程的完整理论：[[Mathematics-Universe/08-数学联系网络/跨分支深层联系.md#13-矩阵指数与微分方程]]
+> 📖 矩阵指数与微分方程的完整理论：[跨分支深层联系](https://github.com/CacinieP/Mathematics-Universe/blob/main/08-数学联系网络/跨分支深层联系.md#13-矩阵指数与微分方程)
 
 ---
 
@@ -115,19 +115,21 @@ $$\mathbf{x}(t+\Delta t) \approx \mathbf{x}(t) + \Delta t \cdot A\mathbf{x}(t)$$
 | $\mathbf{x}_{n+1} = \mathbf{x}_n + \Delta t \cdot f(\mathbf{x}_n)$ | $\mathbf{x}_{l+1} = \mathbf{x}_l + f(\mathbf{x}_l)$ |
 | $\Delta t$（步长） | 1（每层的步长为1） |
 | $f(\mathbf{x}) = A\mathbf{x}$（线性） | $f(\mathbf{x}_\theta)$（可学习的非线性） |
-| 精确解：$\mathbf{x}(t) = e^{At}\mathbf{x}(0)$ | 极限：$\mathbf{x}_L = \prod (I + f_l)\mathbf{x}_0$ |
+| 精确解：$\mathbf{x}(t) = e^{At}\mathbf{x}(0)$ | 递推：$\mathbf{x}_{l+1}=\mathbf{x}_l+\Delta t f_l(\mathbf{x}_l)$ |
 
 ### 2.2 ResNet 是 ODE 求解器的离散化
 
 把 ResNet 的 $L$ 层展开：
 
-$$\mathbf{x}_L = \left(\prod_{l=0}^{L-1}(I + \Delta t \cdot f(\mathbf{x}_l, \theta_l))\right)\mathbf{x}_0$$
+$$\mathbf{x}_{l+1}=\mathbf{x}_l+\Delta t\,f(\mathbf{x}_l,\theta_l),\qquad \mathbf{x}_L=\mathbf{x}_0+\Delta t\sum_{l=0}^{L-1}f(\mathbf{x}_l,\theta_l).$$
+
+非线性 $f$ 不能与矩阵 $I$ 相加后作矩阵连乘；只有 $f_l(x)=A_lx$ 的线性情形才写成有序乘积 $(I+\Delta t A_{L-1})\cdots(I+\Delta t A_0)x_0$。
 
 当层数 $L \to \infty$，步长 $\Delta t \to 0$，且 $L \cdot \Delta t = T$（总时间固定）：
 
 $$\mathbf{x}_L \to \mathbf{x}(T) = \text{ODE solver}\left(\frac{d\mathbf{x}}{dt} = f(\mathbf{x}(t), \theta(t)), \mathbf{x}(0)\right)$$
 
-**这个极限就是 Neural ODE**。
+在向量场满足适当连续性、Lipschitz 条件且离散参数近似同一连续向量场时，这个极限才是对应的 Neural ODE；任意增加 ResNet 层数不自动给出该极限。
 
 ---
 
@@ -190,7 +192,7 @@ class NeuralODE(nn.Module):
     def __init__(self, dim, t_span=(0.0, 1.0)):
         super().__init__()
         self.func = ODEFunc(dim)
-        self.t_span = torch.tensor(t_span)  # (t_start, t_end)
+        self.register_buffer("t_span", torch.tensor(t_span))  # (t_start, t_end)
 
     def forward(self, x):
         # odeint 自动选择求解器（通常是自适应RK方法）
@@ -201,7 +203,9 @@ class NeuralODE(nn.Module):
 model = NeuralODE(dim=784, t_span=(0.0, 1.0))  # MNIST: 784 → 784
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
+train_loader = [(torch.randn(4, 1, 28, 28), torch.zeros(4, dtype=torch.long))]
 for x, y in train_loader:
+    optimizer.zero_grad()
     x_flat = x.view(x.size(0), -1)       # (batch, 784)
     x_hat = model(x_flat)                 # (batch, 784)
     loss = nn.functional.mse_loss(x_hat, x_flat)
@@ -266,14 +270,16 @@ $$\frac{d\mathbf{h}}{dt} = f(\mathbf{h}(t), \theta)$$
 **损失**：$\mathcal{L} = \mathcal{L}(\mathbf{h}(t_1))$
 
 **反向**（伴随方程）：
-$$\frac{d\mathbf{a}(t)}{dt} = -\mathbf{a}(t)^T \frac{\partial f}{\partial \mathbf{h}}(\mathbf{h}(t), \theta)$$
+$$\frac{d\mathbf{a}(t)}{dt} = -\left(\frac{\partial f}{\partial \mathbf{h}}\right)^T\mathbf{a}(t)$$
 
 其中 $\mathbf{a}(t) = \frac{\partial \mathcal{L}}{\partial \mathbf{h}(t)}$ 是**伴随状态**。
 
 **参数梯度**：
-$$\frac{\partial \mathcal{L}}{\partial \theta} = \int_{t_1}^{t_0} \mathbf{a}(t)^T \frac{\partial f}{\partial \theta}(\mathbf{h}(t), \theta) \, dt$$
+$$\nabla_\theta\mathcal L=\int_{t_0}^{t_1}\left(\frac{\partial f}{\partial\theta}\right)^T\mathbf a(t)\,dt.$$
 
-**这就是整个反向传播**——只需要存储最终状态 $\mathbf{h}(t_1)$ 和最终伴随 $\mathbf{a}(t_1)$，中间全部通过伴随 ODE 重新计算。
+这里所有梯度都按列向量记，假设初始状态不依赖参数；若反向从 $t_1$ 积分到 $t_0$，积分式须加负号。
+
+连续伴随可避免保存求解器的每个内部步；$O(1)$ 指相对内部步数的内存，不包括参数、请求输出及可能的检查点。反向重建存在数值误差，连续伴随梯度不一定等于离散求解器的精确梯度。
 
 ```python
 # 概念性代码（torchdiffeq 内部实现）
@@ -303,12 +309,12 @@ def backward_pass(f, t_span, h_final, adj_final):
 Neural ODE 在 ImageNet 上：
 - **没有"层数"的概念**——只有时间区间 $[0, 1]$
 - 可以通过调整ODE solver的容差（tolerance）在**精度和速度之间trade-off**
-- 相同参数量的模型，精度与ResNet相当
+- 精度与速度需在具体数据集、求解容差和架构下比较，不能由连续深度推出与 ResNet 等效
 
 ### 5.2 连续时间序列建模
 
-传统RNN需要等间隔采样（每个时间步处理一次）。Neural ODE 可以：
-- 在**任意时间点**查询隐藏状态（不需要插值）
+传统 RNN 按观测索引更新，也可显式输入时间间隔；Neural ODE 可以：
+- 在**任意时间点**查询连续状态（数值求解器可能用稠密输出插值）
 - 处理**不规则采样**的数据（医疗记录、物理传感器）
 
 ```python
@@ -316,7 +322,7 @@ Neural ODE 在 ImageNet 上：
 observation_times = torch.tensor([0.0, 0.3, 1.2, 3.5, 7.0])  # 不均匀采样
 
 # 直接把观测时间点作为积分节点传给 odeint，
-# 返回值即为各观测时刻的状态（不需要插值！）
+# 返回请求时刻的数值状态（求解器内部可能使用插值）
 observed = odeint(func, x0, observation_times)  # (len(observation_times), ...)
 ```
 
@@ -352,7 +358,7 @@ $$\log p(\mathbf{z}(t_1)) = \log p(\mathbf{z}(t_0)) - \int_{t_0}^{t_1} \nabla \c
 │  ResNet                                                          │
 │  残差连接 x_{l+1} = x_l + f(x_l)                                │
 │  本质是欧拉法求解 x' = f(x)，步长 Δt = 1                         │
-│  增加层数 = 减小步长，提高精度                                   │
+│  固定向量场和总时间时，增加离散步数可提高精度                                   │
 └────────────────────────────┬────────────────────────────────────┘
                              │ 第二步：取极限
                              ▼
@@ -415,19 +421,19 @@ $$\log p(\mathbf{z}(t_1)) = \log p(\mathbf{z}(t_0)) - \int_{t_0}^{t_1} \nabla \c
 - [NeurIPS 2018 教程](https://slideslive.com/neurips-2018) — Neural ODE 作者本人的教程
 
 ### 关联文章
-- [[特征值分解 → PCA → 自编码器]]（轴线A上一篇）
-- [[SVD → 推荐系统 → 协同过滤]]（轴线A第二篇）
-- [[微分方程解 = 线性代数解结构]]（纯数学链接）
+- [特征值分解 → PCA → 自编码器](01-特征值分解→PCA→自编码器.md)（轴线A上一篇）
+- [SVD → 推荐系统 → 协同过滤](02-SVD→推荐系统→协同过滤.md)（轴线A第二篇）
+- [微分方程解 = 线性代数解结构](https://github.com/CacinieP/Mathematics-Universe/blob/main/08-数学联系网络/跨分支深层联系.md)（纯数学链接）
 
 ---
 
 ## 联系网络
 
-⬆ 上游: [[Mathematics-Universe/03-高等数学/07-常微分方程/常微分方程详解.md]]（微分方程分类与求解），[[Mathematics-Universe/04-线性代数/05-特征值与特征向量/特征值与特征向量详解.md]]（矩阵指数 = 对角化后逐元素指数），[[Mathematics-Universe/08-数学联系网络/跨分支深层联系.md]]（矩阵指数与微分方程的联系）
+⬆ 上游: [常微分方程详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/03-高等数学/07-常微分方程/常微分方程详解.md)（微分方程分类与求解），[特征值与特征向量详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/04-线性代数/05-特征值与特征向量/特征值与特征向量详解.md)（矩阵指数 = 对角化后逐元素指数），[跨分支深层联系](https://github.com/CacinieP/Mathematics-Universe/blob/main/08-数学联系网络/跨分支深层联系.md)（矩阵指数与微分方程的联系）
 
 ⬇ 下游: 连续生成模型（CNF/Flow Matching）、神经算子（Neural Operator）
 
-↔ 横联: [[02-SVD→推荐系统]]（SVD的另一种推广视角：从离散到连续）
+↔ 横联: [02-SVD→推荐系统](02-SVD→推荐系统→协同过滤.md)（SVD的另一种推广视角：从离散到连续）
 
 🔗 跨域: 科学计算（物理模拟、天气预测），医疗（不规则时序建模），机器人（连续控制）
 

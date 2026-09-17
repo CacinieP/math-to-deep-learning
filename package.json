@@ -1,0 +1,8 @@
+{
+  "name": "math-to-deep-learning-reading-site",
+  "private": true,
+  "description": "Self-hosted math rendering assets for the reading site",
+  "dependencies": {
+    "mathjax": "3.2.2"
+  }
+}
