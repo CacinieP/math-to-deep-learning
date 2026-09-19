@@ -2,7 +2,6 @@
 from __future__ import annotations
 import argparse
 import hashlib
-import html
 import json
 import posixpath
 import re
@@ -14,6 +13,11 @@ from bs4 import BeautifulSoup
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOS = ('Mathematics-Universe', 'math-to-deep-learning')
+
+
+def anchor_name(heading):
+    """ASCII anchors survive both the GFM API and the live Wiki sanitizer."""
+    return 'section-' + hashlib.sha256(heading.encode('utf-8')).hexdigest()[:20]
 
 
 def page_name(source):
@@ -39,6 +43,9 @@ def catalog(root):
         soup = BeautifulSoup(rendered.read_text(), 'html.parser')
         article = soup.select_one('article')
         headings = [str(h['id']) for h in article.select('h1[id],h2[id],h3[id],h4[id],h5[id],h6[id]')]
+        anchors = [anchor_name(heading) for heading in headings]
+        if len(anchors) != len(set(anchors)):
+            raise ValueError(f'Wiki anchor collision: {rel}')
         result[rel] = {'name': page_name(rel), 'headings': headings, 'source': source}
     names = [item['name'].casefold() for item in result.values()]
     if len(names) != len(set(names)):
@@ -54,7 +61,7 @@ def wiki_url(repo, item, fragment=''):
         fragment = unquote(fragment)
         if fragment not in item['headings']:
             raise ValueError(f'Missing wiki anchor: {item["name"]}#{fragment}')
-        suffix = '#section-' + quote(fragment, safe='-')
+        suffix = '#' + anchor_name(fragment)
     return f'https://github.com/CacinieP/{repo}/wiki/{quote(item["name"], safe="-")}' + suffix
 
 
@@ -91,6 +98,16 @@ def protect_inline_math(match):
     return '$`' + tex.strip() + '`$'
 
 
+def protect_wiki_brackets(text):
+    """Gollum treats literal [[...]] as a Wiki link even when GFM does not."""
+    # Inline formulas have already become $`...`$; preserve their TeX just as
+    # ordinary inline code. Display formulas and fenced code return earlier.
+    chunks = re.split(r'(`+[^`]*`+)', text)
+    for i in range(0, len(chunks), 2):
+        chunks[i] = chunks[i].replace('[[', '&#91;&#91;').replace(']]', '&#93;&#93;')
+    return ''.join(chunks)
+
+
 def convert(text, source, repo, catalogs):
     headings = iter(catalogs[repo][source]['headings'])
     result = []; fence = None; display_math = False
@@ -117,11 +134,12 @@ def convert(text, source, repo, catalogs):
         if re.match(r'^#{1,6}\s', line):
             anchor = next(headings, None)
             if anchor is None: raise ValueError(f'Heading mismatch: {source}')
-            result.append(f'<a name="section-{html.escape(anchor, quote=True)}"></a>\n\n')
+            result.append(f'<a name="{anchor_name(anchor)}"></a>\n\n')
         chunks = re.split(r'(`+[^`]*`+)', line)
         for i in range(0, len(chunks), 2):
             chunks[i] = re.sub(r'(\]\()([^\s)]+)(\))', lambda m: m[1] + rewrite_url(m[2], source, repo, catalogs) + m[3], chunks[i])
             chunks[i] = re.sub(r'(?<!\\)\$([^$\n]+)(?<!\\)\$', protect_inline_math, chunks[i])
+            chunks[i] = protect_wiki_brackets(chunks[i])
         result.append(''.join(chunks))
     if display_math: raise ValueError(f'Unclosed display math: {source}')
     if next(headings, None) is not None:
@@ -145,7 +163,7 @@ def export(root, peer):
         intro = f'> [在线阅读版]({reading}) · [源仓库](https://github.com/CacinieP/{repo}) · [Wiki 首页](https://github.com/CacinieP/{repo}/wiki/Home)\n\n'
         target = destination / (item['name'] + '.md')
         target.write_text(intro + body)
-        manifest['pages'][target.name] = {'source': source.as_posix(), 'sha256': hashlib.sha256(target.read_bytes()).hexdigest(), 'anchors': ['section-' + x for x in item['headings']]}
+        manifest['pages'][target.name] = {'source': source.as_posix(), 'sha256': hashlib.sha256(target.read_bytes()).hexdigest(), 'anchors': [anchor_name(x) for x in item['headings']]}
     links = [f'- [首页](https://github.com/CacinieP/{repo}/wiki/Home)']
     if Path('concept-index.md') in catalogs[repo]:
         links.append('- [全局索引](' + wiki_url(repo, catalogs[repo][Path('concept-index.md')]) + ')')
