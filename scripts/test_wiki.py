@@ -88,7 +88,7 @@ class WikiExportTests(unittest.TestCase):
     def test_literal_matrix_brackets_are_not_wiki_links(self):
         source = '# 首页\n\n矩阵 A=[[2,1],[-1,4]]；`[[literal code]]`；$[[x]]$\n\n```python\nA = [[2, 1], [-1, 4]]\n```\n'
         result = convert(source, Path('index.md'), 'Mathematics-Universe', self.catalogs)
-        self.assertIn('A=&#91;&#91;2,1],[-1,4&#93;&#93;', result)
+        self.assertIn('A=`[[2,1],[-1,4]]`', result)
         self.assertIn('`[[literal code]]`', result)
         self.assertIn('$`[[x]]`$', result)
         self.assertIn('A = [[2, 1], [-1, 4]]', result)
