@@ -118,7 +118,7 @@ MSE:   loss = (y_pred - y_true)^2
 
 **等等，这不是说 MSE 更好吗？** 不——问题在于梯度：
 
-对单个样本，令 $p=\operatorname{softmax}(z)$、$t$ 为 one-hot 标签，并定义 $L_{\rm MSE}=\frac12\sum_c(p_c-t_c)^2$，则
+对单个样本，令 $p=\mathop{\mathrm{softmax}}\nolimits(z)$、$t$ 为 one-hot 标签，并定义 $L_{\rm MSE}=\frac12\sum_c(p_c-t_c)^2$，则
 
 ```python
 # 在已有 logits/probs/y 的上下文中，按样本计算（尚未除 batch）
@@ -128,7 +128,7 @@ error = probs - one_hot
 grad_mse = probs * (error - (error * probs).sum(dim=-1, keepdim=True))
 ```
 
-softmax 的 Jacobian 为 $\operatorname{diag}(p)-pp^T$，不能把各类别当独立 sigmoid。关键问题是**自信但错误**的预测：MSE 额外经过接近零的 softmax Jacobian，梯度可能很小；CE 对 logits 的梯度仍为 $p-t$。正确且自信时两者梯度趋零都合理。MSE 用于概率预测即 Brier score，并非数学上禁止用于分类。
+softmax 的 Jacobian 为 $\mathop{\mathrm{diag}}\nolimits(p)-pp^T$，不能把各类别当独立 sigmoid。关键问题是**自信但错误**的预测：MSE 额外经过接近零的 softmax Jacobian，梯度可能很小；CE 对 logits 的梯度仍为 $p-t$。正确且自信时两者梯度趋零都合理。MSE 用于概率预测即 Brier score，并非数学上禁止用于分类。
 
 ---
 

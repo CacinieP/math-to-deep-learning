@@ -140,7 +140,7 @@ def predict_bayesian(x_new, mu_post, Sigma_post, sigma=0.1):
 
 $$\theta \sim \mathcal{N}(\mu_\phi, \sigma_\phi^2)$$
 
-其中 $\mu_\phi$ 与 $\rho_\phi$ 通常直接作为变分参数学习，令 $\sigma_\phi=\operatorname{softplus}(\rho_\phi)$ 保证尺度正性。
+其中 $\mu_\phi$ 与 $\rho_\phi$ 通常直接作为变分参数学习，令 $\sigma_\phi=\mathop{\mathrm{softplus}}\nolimits(\rho_\phi)$ 保证尺度正性。
 
 **训练目标**：最小化 KL 散度
 

@@ -88,7 +88,7 @@ $$\text{Var}(Wx) = n_{in} \cdot \sigma_w^2$$
     Var(a) << 1  ← 尺度过小，多层连乘可能使信号和梯度衰减
 ```
 
-这是 Xavier 的线性传播分析起点。若 $a\sim\mathcal N(0,q)$，则 ReLU 后 $\mathbb E[h^2]=q/2$，而 $\operatorname{Var}(h)=q(1/2-1/(2\pi))$；对应修正在第四节推导。
+这是 Xavier 的线性传播分析起点。若 $a\sim\mathcal N(0,q)$，则 ReLU 后 $\mathbb E[h^2]=q/2$，而 $\mathop{\mathrm{Var}}\nolimits(h)=q(1/2-1/(2\pi))$；对应修正在第四节推导。
 
 ---
 
@@ -215,7 +215,7 @@ torch.nn.init.kaiming_uniform_(W)  # He 均匀
 | LeakyReLU($\alpha$) | $(1+\alpha^2)/2$ | $2/((1+\alpha^2)n_{in})$ | He 变体 |
 | Swish/SiLU | 标准正态输入下二阶矩约 0.356；随尺度变化 | 需解二阶矩固定点或实测 | 不能直接取 $1/0.356$ 的增益平方 |
 
-SiLU 不像 ReLU 那样正齐次。令输入二阶矩为 1、权重方差为 $v/n_{in}$，则预激活近似 $\sqrt v Z$（$Z\sim\mathcal N(0,1)$），应求 $\mathbb E[\operatorname{SiLU}(\sqrt v Z)^2]=1$。数值积分给 $v\approx2.4297$；直接用 $v=1/0.356\approx2.81$ 会得到约 1.181 的输出二阶矩。这个固定点仍只是前向统计近似，不保证反向梯度稳定。
+SiLU 不像 ReLU 那样正齐次。令输入二阶矩为 1、权重方差为 $v/n_{in}$，则预激活近似 $\sqrt v Z$（$Z\sim\mathcal N(0,1)$），应求 $\mathbb E[\mathop{\mathrm{SiLU}}\nolimits(\sqrt v Z)^2]=1$。数值积分给 $v\approx2.4297$；直接用 $v=1/0.356\approx2.81$ 会得到约 1.181 的输出二阶矩。这个固定点仍只是前向统计近似，不保证反向梯度稳定。
 
 ```python
 import numpy as np
@@ -244,7 +244,7 @@ $$\frac{\partial L}{\partial W^{(1)}} = \frac{\partial L}{\partial h^{(L)}} \cdo
 
 **反向信号的统计近似**：在初始化的独立性、零均值等近似下，单坐标梯度方差满足
 
-$$\operatorname{Var}(\delta_{l-1})\approx n_{\rm out}\sigma_w^2\,\mathbb E[\sigma'(z_l)^2]\operatorname{Var}(\delta_l).$$
+$$\mathop{\mathrm{Var}}\nolimits(\delta_{l-1})\approx n_{\rm out}\sigma_w^2\,\mathbb E[\sigma'(z_l)^2]\mathop{\mathrm{Var}}\nolimits(\delta_l).$$
 
 这里包含扇出数量、权重方差与激活导数的二阶矩；不能直接写成“各 Jacobian 元素方差的乘积”。Xavier/He 旨在改善这些统计缩放，并不保证每个样本或每个梯度方向稳定。
 

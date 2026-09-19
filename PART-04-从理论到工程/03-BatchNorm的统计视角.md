@@ -12,7 +12,7 @@
 
 $$\tilde X = \frac{X - \mathbb{E}[X]}{\sqrt{\text{Var}(X)}}$$
 
-要求 $0<\operatorname{Var}(X)<\infty$。标准化后 $\mathbb{E}[\tilde X] = 0$，$\text{Var}(\tilde X) = 1$。**消除尺度和偏移差异**，让不同特征在同一量纲下比较。
+要求 $0<\mathop{\mathrm{Var}}\nolimits(X)<\infty$。标准化后 $\mathbb{E}[\tilde X] = 0$，$\text{Var}(\tilde X) = 1$。**消除尺度和偏移差异**，让不同特征在同一量纲下比较。
 
 > 📖 期望与方差：[数字特征详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/05-概率论与数理统计/04-数字特征/数字特征详解.md)
 

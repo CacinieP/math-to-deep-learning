@@ -194,7 +194,7 @@ $$\mathcal{L} = \|X - g_\phi(f_\theta(X))\|^2$$
 
 证明概要：
 - 统一沿用样本按行的 $X\in\mathbb R^{n\times d}$，编码器 $W_{\rm enc}\in\mathbb R^{d\times k}$，解码器 $W_{\rm dec}\in\mathbb R^{k\times d}$。
-- 令 $W=W_{\rm enc}W_{\rm dec}$，目标为 $\min_{\operatorname{rank}(W)\leq k}\|X-XW\|_F^2$。
+- 令 $W=W_{\rm enc}W_{\rm dec}$，目标为 $\min_{\mathop{\mathrm{rank}}\nolimits(W)\leq k}\|X-XW\|_F^2$。
 - 取 $W=Q_kQ_k^T$ 得到 PCA 的最优重构；潜在表示本身不唯一。
 
 > 这就是为什么自编码器的**瓶颈层（bottleneck）** 被称为"非线性 PCA"——线性时退化为 PCA，非线性时超越 PCA。
@@ -296,7 +296,7 @@ X → Z (固定)    X → z (固定)    X → N(μ, σ²) → z (随机)
 
 ### 4.2 重参数化技巧的数学本质
 
-$$z \sim \mathcal{N}(\mu, \operatorname{diag}(\sigma_1^2,\ldots,\sigma_k^2))$$
+$$z \sim \mathcal{N}(\mu, \mathop{\mathrm{diag}}\nolimits(\sigma_1^2,\ldots,\sigma_k^2))$$
 
 普通 `.sample()` 不提供样本到分布参数的路径梯度；期望仍可用 score-function 等估计器求梯度。**重参数化**把随机性移到外部：
 

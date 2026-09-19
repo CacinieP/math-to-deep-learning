@@ -78,7 +78,7 @@ $$\lambda_i(I + A) = 1 + \lambda_i(A)$$
 
 ### 3.2 LayerNorm 的谱影响
 
-LayerNorm 的标准化部分控制特征尺度，再施加可学习仿射参数；它不保证雅可比谱范数小于 1。其导数尺度受 $\gamma/\sqrt{\operatorname{Var}(h)+\epsilon}$ 影响，低方差时可能放大梯度，去均值还会产生零导数方向。
+LayerNorm 的标准化部分控制特征尺度，再施加可学习仿射参数；它不保证雅可比谱范数小于 1。其导数尺度受 $\gamma/\sqrt{\mathop{\mathrm{Var}}\nolimits(h)+\epsilon}$ 影响，低方差时可能放大梯度，去均值还会产生零导数方向。
 
 ---
 
