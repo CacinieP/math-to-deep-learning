@@ -12,7 +12,7 @@
 
 $$\tilde X = \frac{X - \mathbb{E}[X]}{\sqrt{\text{Var}(X)}}$$
 
-标准化后 $\mathbb{E}[\tilde X] = 0$，$\text{Var}(\tilde X) = 1$。**消除尺度和偏移差异**，让不同特征在同一量纲下比较。
+要求 $0<\operatorname{Var}(X)<\infty$。标准化后 $\mathbb{E}[\tilde X] = 0$，$\text{Var}(\tilde X) = 1$。**消除尺度和偏移差异**，让不同特征在同一量纲下比较。
 
 > 📖 期望与方差：[数字特征详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/05-概率论与数理统计/04-数字特征/数字特征详解.md)
 
@@ -22,7 +22,7 @@ $$\tilde X = \frac{X - \mathbb{E}[X]}{\sqrt{\text{Var}(X)}}$$
 
 $$\tilde{\mathbf{X}} = \Sigma^{-1/2}(\mathbf{X} - \boldsymbol\mu)$$
 
-其中 $\Sigma$ 是协方差矩阵。白化后各分量**不相关且方差为 1**。
+其中 $\Sigma$ 须正定；若奇异只能在非零特征值对应子空间白化，不能得到原维度的单位协方差。白化后各分量**不相关且方差为 1**。
 
 **完整白化的代价**：要算协方差矩阵的逆平方根 $\Sigma^{-1/2}$，对高维特征计算量巨大。BatchNorm 是其**简化版**。
 
@@ -46,7 +46,7 @@ $$\tilde x_{i,j} = \frac{x_{i,j} - \mu_j}{\sqrt{\sigma_j^2 + \epsilon}}$$
 
 ### 2.2 BN 的缓解
 
-BN 强制每层激活的均值方差稳定（固定为 0、1，再由可学参数 $\gamma, \beta$ 微调）。后层看到的分布不再剧烈漂移，可以用更大学习率。
+BN 仿射前的 batch 均值为 0，方差为 $\sigma_j^2/(\sigma_j^2+\epsilon)$；仿射后均值为 $\beta_j$、方差再乘 $\gamma_j^2$。它控制这些统计量，但不固定高阶分布或保证 ICS 消失；可用更大学习率是常见经验收益。
 
 ### 2.3 争议：BN 真的是因为 ICS 吗
 
@@ -66,11 +66,11 @@ $$\hat x_{i,j} = \frac{x_{i,j} - \mu_j}{\sqrt{\sigma_j^2 + \epsilon}}$$
 
 $$y_{i,j} = \gamma_j \hat x_{i,j} + \beta_j$$
 
-$\gamma_j, \beta_j$ 是**可学参数**，让网络能恢复任意均值方差（不强制标准化）。
+$\gamma_j, \beta_j$ 是**可学参数**，调整均值与尺度（输入在该维方差为零时，仿射不能恢复非零方差）。
 
 ### 3.2 推理时（用总体统计）
 
-测试时 batch 可能很小（甚至 1），不能用 batch 统计。BN 用训练时累积的**移动平均** $\bar\mu, \bar\sigma^2$：
+默认 `track_running_stats=True` 时，eval 使用训练时累积的**移动平均** $\bar\mu, \bar\sigma^2$：
 
 $$\hat x = \frac{x - \bar\mu}{\sqrt{\bar\sigma^2 + \epsilon}}$$
 
@@ -80,9 +80,11 @@ model.train()  # 训练模式
 model.eval()   # 推理模式
 ```
 
+若设置 `track_running_stats=False`，train 与 eval 都使用当前 batch 统计。参见 [PyTorch BatchNorm 文档](https://docs.pytorch.org/docs/2.14/generated/torch.nn.BatchNorm1d.html)。
+
 ### 3.3 小 batch 的问题
 
-batch 太小（如 2）时，batch 统计 $\mu, \sigma^2$ 估计不准，BN 失效。**这是 LayerNorm / GroupNorm 兴起的原因**——它们不依赖 batch 维度。
+有效归一化样本过少时，统计估计可能噪声很大；对二维输入 $(N,C)$，训练时每通道仅一个值会报错。CNN 的 BN 还聚合空间维，因此 $N=1$ 不自动失效，$N=2$ 也不必然失败。**这是 LayerNorm / GroupNorm 兴起的原因**——它们不依赖 batch 维度。
 
 ---
 
@@ -93,7 +95,7 @@ batch 太小（如 2）时，batch 统计 $\mu, \sigma^2$ 估计不准，BN 失�
 | BatchNorm | batch + 空间 | 是 | CNN 图像 |
 | LayerNorm | 特征维 | 否 | Transformer/RNN |
 | InstanceNorm | 空间维 | 否 | 风格迁移 |
-| GroupNorm | 特征分组 | 否 | 小 batch CNN |
+| GroupNorm | 每样本的组内通道及空间维 | 否 | 小 batch CNN |
 
 ```
         batch  特征  空间
@@ -118,7 +120,7 @@ ln = nn.LayerNorm(512)       # Transformer 标配
 
 ### 5.2 手写 BN 的统计部分（教学用）
 
-下面仅展示 CPU 上的统计计算；`gamma/beta` 不是注册参数，不能作为可训练层的替代。完整训练应使用 `nn.BatchNorm1d`。
+下面仅展示 CPU 二维输入 $(N,C)$ 上的统计计算；`gamma/beta` 不是注册参数，不能作为可训练层的替代。完整训练应使用 `nn.BatchNorm1d`。
 
 ```python
 import torch
@@ -131,14 +133,19 @@ class BatchNorm1d:
         self.running_var = torch.ones(dim)
         self.momentum, self.eps = momentum, eps
     def __call__(self, x, training=True):
+        if x.ndim != 2:
+            raise ValueError("this teaching example expects (N, C)")
         if training:
+            if x.shape[0] < 2:
+                raise ValueError("training requires at least two values per channel")
             mean = x.mean(0)
             var = x.var(0, unbiased=False)
             with torch.no_grad():
                 self.running_mean = (1-self.momentum)*self.running_mean + self.momentum*mean
-                # 注意：PyTorch 归一化用有偏方差、running_var 更新用无偏（n/(n−1) 修正）；
-                # 本教学实现两者均用有偏，数值上略有差异
-                self.running_var  = (1-self.momentum)*self.running_var  + self.momentum*var
+                # PyTorch 归一化用有偏方差，running_var 更新用无偏方差。
+                unbiased_var = var * x.shape[0] / (x.shape[0] - 1)
+                self.running_var = ((1-self.momentum)*self.running_var
+                                    + self.momentum*unbiased_var)
         else:
             mean, var = self.running_mean, self.running_var
         x_hat = (x - mean) / (var + self.eps).sqrt()
@@ -199,7 +206,7 @@ BN = 每个 mini-batch 把激活去均值除标准差
    = 让每层分布稳定, 后层好学
 
 副作用: batch 随机性带来轻微正则
-陷阱:   batch 太小失效; 推理必须 eval()
+陷阱:   有效统计样本过少可能不稳；推理注意 eval 与统计配置
 ```
 
 **BN 是分布对齐的简化工程实现。** 统计上是标准化，工程上是稳定训练的关键组件。

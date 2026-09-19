@@ -51,7 +51,7 @@ $$\max_\pi \mathbb{E}_{x, y\sim\pi}[r(x, y)]$$
 
 加入 KL 惩罚：
 
-$$\max_\pi \mathbb{E}_{x, y\sim\pi}[r(x, y)] - \beta\,D_{\text{KL}}(\pi(\cdot|x) \| \pi_{\text{ref}}(\cdot|x))$$
+$$\max_\pi\mathbb E_{x\sim\mathcal D}\left[\mathbb E_{y\sim\pi(\cdot\mid x)}r(x,y)-\beta D_{\mathrm{KL}}(\pi(\cdot\mid x)\|\pi_{\mathrm{ref}}(\cdot\mid x))\right]$$
 
 **优化解读**（奖励模型固定时只有策略在优化，并非双玩家同时行动）：
 - 第一项：策略想最大化 RM 奖励
@@ -92,7 +92,7 @@ $$\pi^*(y|x) \propto \pi_{\text{ref}}(y|x) \exp(r(x, y)/\beta)$$
 
 ### 4.1 多目标博弈
 
-真实对齐不止"好/坏"二元。多个偏好维度（有用、无害、诚实）构成**多目标博弈**：
+真实对齐不止"好/坏"二元。多个偏好维度（有用、无害、诚实）可构成**多目标优化**；固定权重求加权和仍是单策略优化：
 
 $$\max_\pi \sum_k w_k \mathbb{E}[r_k(x,y)] - \beta\,D_{\text{KL}}(\pi\|\pi_{\text{ref}})$$
 
@@ -104,7 +104,7 @@ $$\max_\pi \sum_k w_k \mathbb{E}[r_k(x,y)] - \beta\,D_{\text{KL}}(\pi\|\pi_{\tex
 - 攻击者：找提示绕过对齐（越狱）
 - 防御者：RM 标注对抗样本，重训
 
-这是动态博弈，纳什均衡可能不存在或不稳定。
+只有指定双方策略集、信息与收益后，才能分析均衡存在性及学习动态；红队流程本身不足以推出均衡不存在或不稳定。
 
 ### 4.3 自我对弈（Constitutional AI）
 

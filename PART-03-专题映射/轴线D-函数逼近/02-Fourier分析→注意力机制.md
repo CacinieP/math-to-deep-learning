@@ -38,7 +38,7 @@ $$\langle e_m, e_n\rangle = \delta_{mn}$$
 
 $$\hat f(\xi) = \int_{-\infty}^{\infty} f(x) e^{-2\pi i \xi x}\,dx$$
 
-**物理解读**：$\hat f(\xi)$ 是 $f$ 在频率 $\xi$ 处的"含量"。$|\hat f|^2$ 是功率谱。
+**物理解读**：$\hat f(\xi)$ 是 $f$ 在频率 $\xi$ 处的"含量"。若还满足 $f\in L^2$，$|\hat f|^2$ 是能量谱密度；平稳随机过程的功率谱密度需从自相关等另行定义。
 
 ---
 
@@ -112,11 +112,11 @@ $$\text{Var}\left(\frac{q \cdot k}{\sqrt{d_k}}\right) = 1$$
 
 $$\text{MultiHead}(X) = \text{Concat}(\text{head}_1, \ldots, \text{head}_h) W_O$$
 
-$$\text{head}_i = \text{Attn}(Q W_Q^i, K W_K^i, V W_V^i)$$
+$$\text{head}_i = \text{Attn}(X W_Q^i, X W_K^i, X W_V^i)$$
 
 ### 4.2 与多分辨率 Fourier 的类比
 
-- 短时 Fourier 变换（STFT）：在不同窗口大小下分析信号
+- 短时 Fourier 变换（STFT）：用通常固定大小的滑动窗口分析局部频率；多种窗口大小是进一步的多分辨率扩展
 - 多头注意力：在不同子空间里捕获不同类型的关系
 
 **意义**：不同头能学到不同的"模式"——语法头、语义头、位置头等。
@@ -137,7 +137,10 @@ def attention(Q, K, V, mask=None):
     d_k = Q.size(-1)
     scores = Q @ K.transpose(-2, -1) / math.sqrt(d_k)   # (..., seq, seq)
     if mask is not None:
-        scores = scores.masked_fill(mask == 0, float('-inf'))
+        allowed = torch.broadcast_to(mask != 0, scores.shape)
+        if not allowed.any(dim=-1).all():
+            raise ValueError("each query must have at least one unmasked key")
+        scores = scores.masked_fill(~allowed, float('-inf'))
     alpha = F.softmax(scores, dim=-1)                     # 注意力权重
     return alpha @ V                                      # (..., seq, d_k)
 
@@ -202,7 +205,7 @@ for s in [raw, raw / math.sqrt(d_k)]:    # 未缩放 vs 除以 √d_k（分数�
 
 ### 6.3 谱视角的 Transformer 分析
 
-把注意力矩阵做 SVD，研究其谱（特征值分布）能解释：为什么深层 Transformer 难训练（谱坍缩）、为什么需要残差连接。
+SVD 给出奇异值谱，特征值分解给出特征值谱，两者不能混称。它们可诊断注意力的低秩现象；训练稳定性还需分析完整层的雅可比与残差。
 
 > 📖 谱分析视角：[05-Transformer的谱分析](../../PART-04-从理论到工程/05-Transformer的谱分析.md)
 

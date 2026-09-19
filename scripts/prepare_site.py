@@ -74,7 +74,7 @@ def transform(text, source, repo, catalog):
             chunks[i] = re.sub(r'\[\[([^\]]+)\]\]', wiki, chunks[i])
             # Markdown tables split raw TeX bars before math rendering.
             if line.lstrip().startswith('|'):
-                chunks[i] = re.sub(r'(?<!\\)\$[^$\n]+(?<!\\)\$', lambda m: re.sub(r'(?<!\\)\|', r'\\vert ', m[0]), chunks[i])
+                chunks[i] = re.sub(r'(?<!\\)\$[^$\n]+(?<!\\)\$', lambda m: re.sub(r'(?<!\\)\|', r'\\vert{}', m[0]), chunks[i])
         line = ''.join(chunks)
         # README becomes the homepage; directory links gain generated indexes.
         def local_link(match):

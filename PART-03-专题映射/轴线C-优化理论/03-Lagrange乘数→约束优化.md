@@ -49,10 +49,11 @@ $$\frac{\partial \mathcal{L}}{\partial \mathbf{x}} = 0, \quad \frac{\partial \ma
 展开：
 $$\nabla f(\mathbf{x}^*) = -\lambda \nabla g(\mathbf{x}^*)$$
 
-**前提**：等式约束需满足正则性（单约束常用 $\nabla g
-e0$）。**几何含义**：在这样的约束极值点处，目标函数的梯度**平行于**约束的梯度。
+**前提**：等式约束需满足正则性（单约束常用 $\nabla g\ne0$）。**几何含义**：在这样的约束极值点处，目标梯度是约束法向量的标量倍数；若还满足 $\nabla f\ne0$，目标等值面也是光滑曲面，可描述为两曲面相切。
 
-$$\nabla f \parallel \nabla g \quad \Leftrightarrow \quad \text{等高线与约束曲面相切}$$
+$$\nabla f \parallel \nabla g \quad \Leftrightarrow \quad \text{两光滑等值面的切空间相同}$$
+
+这个几何等价要求两个梯度均非零；$\nabla f=0$ 时乘数条件仍可成立，但目标等值面可能退化，不能直接称为相切。
 
 ### 1.3 不等式约束：KKT 条件
 
@@ -97,25 +98,25 @@ $$\frac{\partial V}{\partial D} = \frac{p_{\text{data}}(x)}{D(x)} - \frac{p_G(x)
 解得：
 $$D^*(x) = \frac{p_{\text{data}}(x)}{p_{\text{data}}(x) + p_G(x)}$$
 
-这是**最优判别器的闭式解**。
+**这是在 $p_{\text{data}}(x)+p_G(x)>0$ 处的最优判别器**；两者均为零处任意取值。
 
 ### 2.3 最优生成器
 
 代入 $D^*$ 到 $V$，得到仅关于 $G$ 的目标：
 
-$$V(G, D^*) = \mathbb{E}_x\left[\log\frac{p_{\text{data}}(x)}{p_{\text{data}}(x) + p_G(x)}\right] + \mathbb{E}_z\left[\log\frac{p_G(x)}{p_{\text{data}}(x) + p_G(x)}\right]$$
+$$V(G, D^*) = \mathbb{E}_{x\sim p_{\text{data}}}\left[\log\frac{p_{\text{data}}(x)}{p_{\text{data}}(x) + p_G(x)}\right] + \mathbb{E}_{x\sim p_G}\left[\log\frac{p_G(x)}{p_{\text{data}}(x) + p_G(x)}\right]$$
 
-常用的非饱和生成器替代目标是：
+化简**原始 minimax 价值函数**得（不是非饱和生成器替代损失）：
 $$V(G, D^*) = -2\log 2 + 2\, D_{JS}(p_{\text{data}} \| p_G)$$
 
 其中 $D_{JS}$ 是 **Jensen-Shannon 散度**（按 $\frac{1}{2}D_{KL}(p\|m) + \frac{1}{2}D_{KL}(q\|m)$、$m=\frac{p+q}{2}$ 的 ½ 加权标准定义，系数 2 由此而来）。
 
 **全局最优**：当 $p_G = p_{\text{data}}$ 时，$D_{JS} = 0$，$V = -2\log 2$。
 
-这个结论刻画理想目标的全局最优；不保证有限神经网络交替梯度训练收敛，实际还可能振荡或模式坍缩。
+参见 [Goodfellow 等原论文第 3 节与定理 1](https://arxiv.org/html/1406.2661v1)。这个结论刻画理想目标的全局最优；不保证有限神经网络交替梯度训练收敛，实际还可能振荡或模式坍缩。
 
 ```python
-# 简化版 GAN 训练（展示 Lagrange 视角）
+# 简化版 GAN 交替训练（极小极大结构，不把 D 当作 Lagrange 乘数）
 class GAN:
     def __init__(self, generator, discriminator):
         self.G = generator
@@ -134,7 +135,7 @@ class GAN:
         d_loss.backward()
         d_optim.step()
 
-        # G 的训练：最小化 V
+        # G 的训练：非饱和替代目标
         # 使用非饱和替代损失 -log D(G(z))，不等于原 minimax 梯度
         g_optim.zero_grad()
         d_fake_for_g = self.D(self.G(noise))
@@ -179,7 +180,8 @@ $$\mathcal{L}(\pi, \lambda) = -\mathbb{E}[R(\pi)] + \sum_i \lambda_i \left(\math
 这是约束 RL 的 Lagrange 方法；CPO 采用信赖域约束更新，是相关但不同的算法。
 
 ```python
-# 概念：用 Lagrange 乘数处理 RL 约束
+# 概念：计算 Lagrange 标量目标与乘数更新；不是可直接训练策略的损失。
+# returns/costs 若来自离散轨迹采样，需配合 log π 的策略梯度或 actor-critic 代理。
 class LagrangianRL:
     def __init__(self, n_constraints):
         self.lambda_ = torch.zeros(n_constraints)  # Lagrange 乘数
@@ -202,7 +204,7 @@ class LagrangianRL:
         λ ← max(0, λ + η(cost - bound))
         训练中违反约束会增大 λ；最优点 λ > 0 意味着约束活跃，不是仍被违反
         """
-        violation = costs.mean(dim=0) - bounds  # 超了多少
+        violation = costs.detach().mean(dim=0) - bounds  # 超了多少
         self.lambda_ = torch.clamp(
             self.lambda_ + self.lambda_lr * violation,
             min=0.0  # λ ≥ 0
@@ -296,7 +298,7 @@ Lagrange:   min f(x) + λ·g(x)
 3. **对比学习**：Triplet Loss 是排序间隔的 hinge 惩罚，不是直接求解 Lagrange 对偶
 4. **注意力**：Mask = 硬约束（不允许 attending 到某些位置）
 
-**一句话总结**：Lagrange 乘数把"硬约束"（不允许违反）转化为"软约束"（违反就罚钱），乘数 $\lambda$ 是罚金的自动调节旋钮——罚轻了约束不起作用，罚重了主目标被牺牲，调到恰到好处就是最优解。
+**Lagrange 乘数用对偶变量表达约束的代价。** 固定惩罚系数不保证可行；把原问题与对偶鞍点等同需强对偶等条件，非凸神经网络的交替更新也不自动收敛。
 
 ---
 

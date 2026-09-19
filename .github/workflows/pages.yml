@@ -47,6 +47,7 @@ jobs:
         working-directory: source
         run: |
           python -m unittest discover -s scripts -p 'test_site.py'
+          python -m unittest discover -s scripts -p 'test_wiki.py'
           python scripts/prepare_site.py --peer ../peer
           python -m mkdocs build --strict
           python scripts/check_site.py

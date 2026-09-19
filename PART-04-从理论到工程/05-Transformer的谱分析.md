@@ -33,7 +33,7 @@ $$\rho(M) > 1 \Rightarrow \|M^L\| \to \infty; \quad \rho(M) < 1 \Rightarrow M^L 
 
 注意力矩阵 $A = \text{softmax}(QK^\top/\sqrt{d})$ 是**行随机矩阵**（每行和为 1）。这类矩阵有特殊谱性质：
 
-- **最大特征值恒为 1**：$A\mathbf{1} = \mathbf{1}$（$\mathbf{1}$ 是全 1 向量，因为行和为 1）
+- **存在特征值 1，且谱半径恒为 1**：$A\mathbf{1} = \mathbf{1}$（$\mathbf{1}$ 是全 1 向量，因为行和为 1）
 - 其余特征值 $|\lambda_i| \leq 1$
 
 **意义**：行随机矩阵可有多个模 1 特征值（如置换矩阵），特征模态与"频率"无一般对应；"低通"仅对局部平滑型注意力是经验事实，不能由行随机性推出。
@@ -97,8 +97,8 @@ def attention_spectra(Q, K):
 Q, K = torch.randn(10, 8), torch.randn(10, 8)
 S = attention_spectra(Q, K)
 print("前 5 个奇异值:", S[:5])
-print("有效秩:", (S > 0.01 * S[0]).sum().item())
-# 有效秩小说明注意力高度集中(低秩)
+print("相对阈值 1% 的数值秩:", (S > 0.01 * S[0]).sum().item())
+# 数值秩小表示行/列近似线性依赖；均匀注意力也为秩 1，不代表权重集中于少数 token
 ```
 
 ### 4.2 监控雅可比谱范数（近似）
@@ -133,7 +133,7 @@ def spectral_norm_estimate(f, x, iters=50):
 ```python
 from torch import nn
 from torch.nn.utils import spectral_norm as sn
-# 对注意力或 FFN 用谱归一化, 归一化到 σ_max=1(默认无 τ 参数; 需 τ 时可再乘 scale)
+# 对线性层用幂迭代近似谱归一化；有限迭代不保证精确 σ_max=1
 layer = sn(nn.Linear(512, 512))
 ```
 
@@ -151,7 +151,7 @@ layer = sn(nn.Linear(512, 512))
 
 ### 5.3 token 趋同（representation collapse）
 
-深网络里若无残差，注意力反复作用会让 token 表示趋同（谱坍缩到少数方向）。残差 + 多头缓解此问题。
+对满足相应条件的纯注意力模型，研究观察并证明了表示秩退化；不能推及所有无残差网络或所有行随机矩阵乘积（置换矩阵反复作用就不趋同）。值投影、非线性、残差和归一化都会改变结论。
 
 ---
 

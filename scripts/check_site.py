@@ -28,6 +28,12 @@ def check(root, peer=None):
         if article:
             for el in article.select('code, pre'):
                 el.decompose()
+            # Compilation success is insufficient: malformed delimiters can
+            # leave formulas as plain text instead of creating math elements.
+            for el in article.select('.arithmatex'):
+                el.decompose()
+            if re.search(r'(?<!\\)\$', article.get_text()):
+                errors.append(f'{relative}: unrendered math delimiter in article')
             if re.search(r'\[\[[^\[\]\n]+\]\]', article.get_text()):
                 errors.append(f'{relative}: unconverted wiki link in article')
         # Use original HTML because code samples may contain actual linked assets.

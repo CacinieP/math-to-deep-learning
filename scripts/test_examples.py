@@ -66,6 +66,27 @@ class Examples(unittest.TestCase):
         torch.testing.assert_close(q @ q.T, vh[:2].T @ vh[:2])
         torch.testing.assert_close(ratio, (s[:2] ** 2).sum() / (s ** 2).sum())
 
+    def test_pca_degenerate_and_invalid_inputs(self):
+        pca = definitions('PART-03*/轴线A*/01*.md')['pca_manual']
+        reduced, _, ratio = pca(torch.ones(4, 3), 2)
+        torch.testing.assert_close(reduced, torch.zeros(4, 2))
+        self.assertTrue(torch.isnan(ratio))  # explained variance is 0/0
+        for x, k in [(torch.ones(1, 3), 2), (torch.ones(4, 3), 4)]:
+            with self.assertRaises(ValueError):
+                pca(x, k)
+
+    def test_vae_loss_matches_gaussian_negative_elbo(self):
+        loss_fn = definitions('PART-03*/轴线A*/01*.md')['vae_loss']
+        x, x_hat = torch.randn(3, 4), torch.randn(3, 4)
+        mu, logvar = torch.randn(3, 2), torch.randn(3, 2)
+        reconstruction = Normal(x_hat, math.sqrt(.5))
+        q = Normal(mu, (.5 * logvar).exp())
+        prior = Normal(torch.zeros_like(mu), torch.ones_like(mu))
+        expected = (-reconstruction.log_prob(x).sum()
+                    - .5 * x.numel() * math.log(math.pi)
+                    + kl_divergence(q, prior).sum())
+        torch.testing.assert_close(loss_fn(x_hat, x, mu, logvar), expected)
+
     def test_recommender_ignores_missing_neighbor_rating(self):
         ns = definitions('PART-03*/轴线A*/02*.md')
         r = torch.tensor([[5., 4., 0.], [5., 4., 0.], [4., 3., 5.]])
@@ -81,6 +102,19 @@ class Examples(unittest.TestCase):
                 y = rk4(lambda t, y: -y, i * h, y, h)
             return abs(y.item() - math.exp(-1))
         self.assertLess(solve(.1), solve(.2) / 10)
+
+    def test_adaptive_ode_returns_actual_accepted_step(self):
+        step = definitions('PART-03*/轴线A*/03*.md')['adaptive_step']
+        y, accepted_h, next_h = step(lambda t, y: -y, 0., torch.tensor(1., dtype=torch.float64), 1., 1e-6)
+        self.assertLess(accepted_h, 1.)  # forces rejection of the proposed full step
+        self.assertAlmostEqual(y.item(), math.exp(-accepted_h), delta=1e-6)
+        self.assertGreater(next_h, accepted_h)
+
+    def test_silu_nonhomogeneous_initialization(self):
+        moment = definitions('PART-03*/轴线B*/03*.md')['silu_second_moment']
+        self.assertAlmostEqual(moment(1.), .355775519817352, places=10)
+        self.assertAlmostEqual(moment(2.4297325), 1., places=6)
+        self.assertGreater(moment(1 / moment(1.)), 1.18)
 
     def test_bayesian_network_elbo_and_gradients(self):
         ns = definitions('PART-03*/轴线B*/01*.md')
@@ -167,6 +201,32 @@ class Examples(unittest.TestCase):
             ns['MultiHeadAttention'](7, 2)
         model = definitions('PART-03*/轴线D*/03*.md')['TransformerLayer'](8, 2)
         model(torch.randn(2, 5, 8)).square().mean().backward()
+
+    def test_masked_attention_and_empty_rows(self):
+        attention = definitions('PART-03*/轴线D*/02*.md')['attention']
+        q, k, v = [torch.randn(2, 2, 5, 4) for _ in range(3)]
+        mask = torch.ones(5, 5, dtype=torch.bool).tril()
+        torch.testing.assert_close(attention(q, k, v, mask),
+                                   F.scaled_dot_product_attention(q, k, v, attn_mask=mask),
+                                   atol=1e-6, rtol=1e-5)
+        mask[0] = False
+        with self.assertRaises(ValueError):
+            attention(q, k, v, mask)
+
+    def test_teaching_batchnorm_matches_train_and_eval(self):
+        Manual = definitions('PART-04*/03*.md')['BatchNorm1d']
+        manual = Manual(3, momentum=.3)
+        native = nn.BatchNorm1d(3, momentum=.3)
+        for _ in range(3):
+            x = torch.randn(4, 3)
+            torch.testing.assert_close(manual(x), native(x))
+            torch.testing.assert_close(manual.running_mean, native.running_mean)
+            torch.testing.assert_close(manual.running_var, native.running_var)
+        native.eval()
+        x = torch.randn(1, 3)
+        torch.testing.assert_close(manual(x, training=False), native(x))
+        with self.assertRaises(ValueError):
+            manual(x)
 
     def test_kl_mine_and_distillation(self):
         ns = definitions('PART-03*/轴线E*/02*.md')

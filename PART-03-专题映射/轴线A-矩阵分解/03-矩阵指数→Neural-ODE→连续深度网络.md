@@ -163,7 +163,7 @@ Layer L: h_L = ...          ODE solver 自动计算
 
 **核心差异**：
 - ResNet：固定层数 $L$，每层做一次残差跳跃
-- Neural ODE：固定**时间区间** $[t_0, t_1]$，ODE solver 自动决定需要多少"微步"
+- Neural ODE：固定**时间区间** $[t_0, t_1]$，自适应 ODE solver 根据容差决定需要多少"微步"（固定步长求解器须指定离散网格）
 
 ### 3.3 PyTorch 实现
 
@@ -195,7 +195,7 @@ class NeuralODE(nn.Module):
         self.register_buffer("t_span", torch.tensor(t_span))  # (t_start, t_end)
 
     def forward(self, x):
-        # odeint 自动选择求解器（通常是自适应RK方法）
+        # 未传 method 时使用默认 dopri5；该求解器自适应选择步长
         h_final = odeint(self.func, x, self.t_span)
         return h_final[-1]  # 取最终时刻的状态
 
@@ -220,7 +220,7 @@ for x, y in train_loader:
 | Euler | 显式一阶 | 最简单，固定步长 | 教学演示 |
 | RK4 | 显式四阶 | 经典，精度适中 | 小规模问题 |
 | **Dormand-Prince (dopri5)** | 自适应 | **torchdiffeq 默认** | 大多数场景 |
-| **Adjoint method** | 反向传播优化 | 内存 $O(1)$ 而非 $O(T)$ | 长序列/大模型 |
+| **Adjoint method** | 梯度计算策略（不是前向求解器） | 相对内部步数可用 $O(1)$ 内存；见下文限制 | 降低反向存储 |
 
 **自适应求解器的优势**：不需要预先设定步长。在"容易变化"的区域用大步长，在"快速变化"的区域自动缩小步长。
 
@@ -240,7 +240,7 @@ def adaptive_step(f, t, y, h, tol=1e-4):
     y_h2 = rk4_step(f, t + h/2, rk4_step(f, t, y, h/2), h/2)  # 两步 h/2（更精确）
     error = (y_h - y_h2).abs().max()      # 误差估计
     if error < tol:
-        return y_h2, h * 1.2              # 成功，放大步长
+        return y_h2, h, h * 1.2              # 返回状态、实际接受步长、建议下步步长
     else:
         return adaptive_step(f, t, y, h/2, tol)  # 失败，减半步长重试
 
@@ -372,7 +372,7 @@ $$\log p(\mathbf{z}(t_1)) = \log p(\mathbf{z}(t_0)) - \int_{t_0}^{t_1} \nabla \c
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  CNF（连续归一化流）                                              │
-│  可逆的生成模型，通过 ODE 精确计算对数似然                         │
+│  可逆生成模型，通过 ODE 积分与散度估计计算对数似然                         │
 │  FFJORD / TorchDiffEq / Flow Matching                            │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -397,7 +397,7 @@ $$\log p(\mathbf{z}(t_1)) = \log p(\mathbf{z}(t_0)) - \int_{t_0}^{t_1} \nabla \c
 
 **矩阵指数在两端都出现**：
 - 左端（纯数学）：$e^{At}$ 是微分方程的精确解
-- 右端（深度学习）：当 ResNet 的残差函数 $f$ 是线性的（$f(h) = Ah$），$L$ 层 ResNet = $(I + A/L)^L \approx e^A$（当 $L \to \infty$）
+- 右端（深度学习）：当 ResNet 的残差函数 $f$ 是线性的（$f(h) = Ah$），取每层步长 $\Delta t=1/L$ 的 $L$ 层 ResNet 的线性算子为 $(I + A/L)^L \approx e^A$（当 $L \to \infty$）
 
 **一句话总结**：ResNet 把微分方程的欧拉法搬到了神经网络中，Neural ODE 反过来把神经网络的极限形式写回了微分方程。矩阵指数 $e^{At}$ 是连接两端的桥梁——它既是微分方程的精确解，也是"无限层网络"的连续版本。
 

@@ -1,6 +1,6 @@
 # 纯数学到深度学习：用应用数学串联数学知识与深度学习教程
 
-**[在线阅读](https://caciniep.github.io/math-to-deep-learning/)** · [配套读本](https://caciniep.github.io/Mathematics-Universe/) · [构建与贡献](./CONTRIBUTING.md)
+**[在线阅读](https://caciniep.github.io/math-to-deep-learning/)** · [GitHub Wiki](https://github.com/CacinieP/math-to-deep-learning/wiki) · [配套读本](https://caciniep.github.io/Mathematics-Universe/) · [构建与贡献](./CONTRIBUTING.md)
 
 > 同一个数学概念，从纸笔推导（Mathematics-Universe）到 GPU 训练（PyTorch），是一条连续的理解线。
 
@@ -23,9 +23,11 @@
 
 ![完成度](https://img.shields.io/badge/完成度-100%25-brightgreen)
 ![正文](https://img.shields.io/badge/正文-38篇-blue)
-![更新](https://img.shields.io/badge/最后更新-2026--09--17-orange)
+![更新](https://img.shields.io/badge/最后更新-2026--09--19-orange)
 
-**最新更新（2026-09-17）**：复核数学条件、代码示例与跨仓库链接，新增可搜索的在线阅读版及构建检查。详见 [本次审核报告](./docs/审核报告-2026-09-17.md)。
+**本次更新（2026-09-19）**：严格复核知识准确性与 LaTeX，补齐定理条件和反例，修复公式漏渲染，新增 GitHub Wiki。详见 [本次审核报告](./docs/审核报告-2026-09-19.md)。
+
+**前次更新（2026-09-17）**：复核数学条件、代码示例与跨仓库链接，新增可搜索的在线阅读版及构建检查。详见 [前次审核报告](./docs/审核报告-2026-09-17.md)。
 
 **前次更新（[2026-08-17] 审核修复）**：依据全量内容审核修复约 110 处数学/代码/链接问题（含补齐 LICENSE、修复目录死链）。前次更新（[2026-07-07] 全量补全）：完成度从 19% → 100%，PART-01 至 PART-05 + APPENDIX 全部填满。详见 [CHANGELOG](./CHANGELOG.md)。
 
