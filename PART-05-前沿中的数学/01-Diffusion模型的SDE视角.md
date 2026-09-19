@@ -16,7 +16,7 @@ $$dx = f(x, t)\,dt + g(x, t)\,dW_t$$
 
 - $f$：漂移项（确定性趋势）
 - $g$：扩散项（随机扰动）
-- $W_t$：标准布朗运动（$dW_t \sim \mathcal{N}(0, dt)$）
+- $W_t$：标准布朗运动；严格地说，对 $\Delta t>0$，增量 $W_{t+\Delta t}-W_t\sim\mathcal N(0,\Delta t)$，$dW_t$ 是随机积分记号
 
 > 📖 随机过程基础：[随机变量及其分布详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/05-概率论与数理统计/02-随机变量及其分布/随机变量及其分布详解.md)
 
@@ -26,7 +26,7 @@ $$dx = f(x, t)\,dt + g(x, t)\,dW_t$$
 
 $$dx = -\theta x\,dt + \sigma\,dW_t$$
 
-**性质**：把任意初值拉向 0（漂移项），同时被噪声扰动（扩散项）。**平稳分布是高斯** $\mathcal{N}(0, \sigma^2/(2\theta))$。
+**要求 $\theta>0$、$\sigma>0$**。漂移把状态拉向 0（漂移项），同时被噪声扰动（扩散项）。**平稳分布是高斯** $\mathcal{N}(0, \sigma^2/(2\theta))$。
 
 **意义**：Diffusion 模型的前向过程就是 OU 的推广——把数据分布平滑地变成标准高斯。
 
@@ -122,6 +122,8 @@ $$\frac{dx}{dt} = f(x,t) - \frac{1}{2}g(t)^2 \nabla_x \log p_t(x)$$
 ## 五、工程实现层
 
 ### 5.1 DDPM 训练循环
+
+代码采用零基索引：`t=0` 对应数学公式的第一次加噪 $x_1$，`t=T-1` 对应 $x_T$；干净样本单独记为 `x0`。
 
 ```python
 import torch

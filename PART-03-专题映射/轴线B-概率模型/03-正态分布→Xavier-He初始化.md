@@ -1,6 +1,6 @@
 # 正态分布 → Xavier/He 初始化
 
-> 神经网络的权重初始化不是"随便设个小随机数"，而是用正态分布和方差传播定理推导出来的。Xavier 和 He 初始化的差异本质上是一个微积分的导数计算。
+> 神经网络的权重初始化可以用信号的方差与二阶矩传播来分析。Xavier 在近线性激活下折中前向与反向传播，He 则计入 ReLU 对二阶矩的影响；这些推导依赖初始化时的统计假设。
 
 **难度**：[标准]（需要概率论 + 了解前向传播 + 一点随机过程）
 
@@ -50,11 +50,11 @@ $$\Sigma_y = A\Sigma A^T$$
 
 考虑一个简单网络：
 
-$$h = \text{ReLU}(Wx + b), \quad y = Vh + c$$
+$$a = Wx + b, \quad h = \text{ReLU}(a), \quad y = Vh + c$$
 
 假设：
 - $x$ 已经归一化：$\mathbb{E}[x] = 0, \text{Var}(x) = 1$
-- 权重初始化：$W_{ij} \sim \mathcal{N}(0, \sigma_w^2)$, $V_{ij} \sim \mathcal{N}(0, \sigma_v^2)$
+- 权重独立初始化并与输入独立：$W_{ij} \sim \mathcal{N}(0, \sigma_w^2)$, $V_{ij} \sim \mathcal{N}(0, \sigma_v^2)$
 - 偏置初始化为 0
 
 **第一层线性变换的方差**：
@@ -65,7 +65,7 @@ $$\text{Var}(Wx) = \text{Var}\left(\sum_j W_{ij}x_j\right)$$
 
 $$= \sum_j \mathbb{E}[W_{ij}^2] \cdot \mathbb{E}[x_j^2] = \sum_j \sigma_w^2 \cdot 1 = n_{in} \sigma_w^2$$
 
-其中 $n_{in}$ 是输入维度。
+其中 $n_{in}$ 是输入维度；这里的方差对随机初始化与输入共同取平均。$a$ 是预激活，$h$ 是激活输出，两者统计量不能混用。
 
 **关键结果**：
 $$\text{Var}(Wx) = n_{in} \cdot \sigma_w^2$$
@@ -75,20 +75,20 @@ $$\text{Var}(Wx) = n_{in} \cdot \sigma_w^2$$
 ### 2.2 信号消失和爆炸
 
 ```
-前向传播:
-    Var(h) = n_in * σ_w^2 * Var(x)
+线性预激活（输入零均值）:
+    Var(a) = n_in * σ_w^2 * Var(x)
 
 如果 σ_w = 1/sqrt(n_in):
-    Var(h) = 1  ← 信号保持稳定！
+    Var(a) = 1  ← 保持输入方差为 1 时的预激活尺度
 
 如果 σ_w 太大:
-    Var(h) >> 1  ← 信号爆炸（饱和激活函数→梯度为0）
+    Var(a) >> 1  ← 尺度过大，可能使饱和激活的导数接近 0
 
 如果 σ_w 太小:
-    Var(h) << 1  ← 信号消失（接近0→梯度消失）
+    Var(a) << 1  ← 尺度过小，多层连乘可能使信号和梯度衰减
 ```
 
-**这就是 Xavier 初始化的来源。**
+这是 Xavier 的线性传播分析起点。若 $a\sim\mathcal N(0,q)$，则 ReLU 后 $\mathbb E[h^2]=q/2$，而 $\operatorname{Var}(h)=q(1/2-1/(2\pi))$；对应修正在第四节推导。
 
 ---
 
@@ -96,16 +96,16 @@ $$\text{Var}(Wx) = n_{in} \cdot \sigma_w^2$$
 
 ### 3.1 推导
 
-目标是让**前向传播和反向传播的方差都保持为 1**。
+目标是尽量保持**前向信号与反向梯度的尺度**。本节假设激活近似零中心且导数为 1（例如 tanh 的原点附近），故 $h\approx a$；反向还采用初始化时梯度与权重近似独立的假设。
 
 **前向**（上面已推导）：
-$$\text{Var}(h) = n_{in} \cdot \sigma_w^2 \cdot \text{Var}(x)$$
+$$\text{Var}(h) \approx \text{Var}(a) = n_{in} \cdot \sigma_w^2 \cdot \text{Var}(x)$$
 
 设 $\text{Var}(h) = \text{Var}(x) = 1$：
 $$\sigma_w = \frac{1}{\sqrt{n_{in}}}$$
 
 **反向传播**（对称推导）：
-$$\text{Var}(\delta_{l-1}) = n_{out} \cdot \sigma_w^2 \cdot \text{Var}(\delta_l)$$
+$$\text{Var}(\delta_{l-1}) \approx n_{out} \cdot \sigma_w^2 \cdot \text{Var}(\delta_l)$$
 
 设 $\text{Var}(\delta_{l-1}) = \text{Var}(\delta_l) = 1$：
 $$\sigma_w = \frac{1}{\sqrt{n_{out}}}$$
@@ -132,14 +132,14 @@ import torch
 import math
 
 def xavier_init_(tensor):
-    """Xavier 均匀初始化"""
+    """仅用于二维 nn.Linear 权重的 Xavier 均匀初始化。"""
     fan_in, fan_out = tensor.shape[-1], tensor.shape[-2]  # nn.Linear 权重形状为 (out, in)
     a = math.sqrt(6.0 / (fan_in + fan_out))
     with torch.no_grad():
         tensor.uniform_(-a, a)
 
 def xavier_normal_(tensor):
-    """Xavier 正态初始化"""
+    """仅用于二维 nn.Linear 权重的 Xavier 正态初始化。"""
     fan_in, fan_out = tensor.shape[-1], tensor.shape[-2]  # nn.Linear 权重形状为 (out, in)
     std = math.sqrt(2.0 / (fan_in + fan_out))
     with torch.no_grad():
@@ -152,7 +152,7 @@ torch.nn.init.xavier_uniform_(W)
 torch.nn.init.xavier_normal_(W)
 ```
 
-**Xavier 初始化适用于**：tanh、sigmoid、softsign（S 型激活函数）
+**Xavier 的推导近似激活处于零中心、斜率约为 1 的线性区**，例如原点附近的 tanh。不能把 sigmoid 的缩放因子当作 1：logistic sigmoid 在原点导数为 $1/4$ 且输出不居中，深层仍易饱和。参见 [Glorot 与 Bengio 原论文](https://proceedings.mlr.press/v9/glorot10a.html)。
 
 ---
 
@@ -160,7 +160,7 @@ torch.nn.init.xavier_normal_(W)
 
 ### 4.1 为什么需要新的初始化
 
-Xavier 是为 **tanh/sigmoid** 设计的。但现代深度学习大量使用 **ReLU**：
+Xavier 基于近似线性、零中心激活的方差传播分析。但现代深度学习大量使用 **ReLU**：
 
 $$\text{ReLU}(x) = \max(0, x)$$
 
@@ -176,11 +176,11 @@ $$\text{ReLU}(x) = \max(0, x)$$
     Var(ReLU(x)) = E[ReLU(x)^2] - E[ReLU(x)]^2 = 0.5 - 0.16 ≈ 0.34
 ```
 
-注意区分**二阶矩**与**方差**：ReLU 把二阶矩 E[h²] 从 1 降到约 0.5（半数信号被置零），而 Var(h) = E[h²] − (E[h])² ≈ 0.34（因为均值不再是 0）。He 的推导基于**二阶矩守恒**（在近似零均值的假设下与方差守恒一致），因此下面的推导采用 E[h²] 的记号。
+注意区分**二阶矩**与**方差**：ReLU 把二阶矩 E[h²] 从 1 降到 0.5，而 Var(h) = E[h²] − (E[h])² ≈ 0.34。He 的前向推导保持激活的**二阶矩**；ReLU 输出均值非零，不能将它说成保持激活方差为 1。随后独立、零均值权重使下一层预激活的方差取决于这个二阶矩。
 
 ### 4.2 推导
 
-在 ReLU 下，前向传播的方差：
+在零均值对称的预激活与初始化独立性假设下，ReLU 输出的二阶矩：
 
 $$\mathbb{E}[h^2] = \frac{1}{2} n_{in} \sigma_w^2 \, \mathbb{E}[x^2]$$
 
@@ -193,7 +193,7 @@ $$\sigma_w = \sqrt{\frac{2}{n_{in}}}$$
 
 ```python
 def he_init_(tensor):
-    """He 初始化（适用于 ReLU）"""
+    """仅用于二维 nn.Linear 权重的 He 初始化（ReLU）。"""
     fan_in = tensor.shape[-1]  # nn.Linear 权重形状为 (out, in)，fan_in 取第 1 维
     std = math.sqrt(2.0 / fan_in)
     with torch.no_grad():
@@ -207,15 +207,30 @@ torch.nn.init.kaiming_uniform_(W)  # He 均匀
 
 ### 4.3 不同激活函数对应的初始化
 
-| 激活函数 | 方差因子 | 初始化方差 | 公式 |
+| 激活函数 | 二阶矩因子或局部线性化说明 | 初始化方差 | 公式 |
 |---------|---------|-----------|------|
-| tanh | 1 | $2/(n_{in}+n_{out})$ | Xavier |
-| sigmoid | 1 | $2/(n_{in}+n_{out})$ | Xavier |
+| tanh | 原点线性化约为 1；实际依赖输入尺度 | $2/(n_{in}+n_{out})$ | 基础 Xavier（可另设 gain） |
+| sigmoid | 原点导数平方为 $1/16$；输出非零均值 | 无简单方差守恒通式 | 基础 Xavier 不保证深层稳定 |
 | ReLU | 1/2 | $2/n_{in}$ | He |
 | LeakyReLU($\alpha$) | $(1+\alpha^2)/2$ | $2/((1+\alpha^2)n_{in})$ | He 变体 |
-| Swish/SiLU | ~0.36* | $\approx 2.8/n_{in}$ | 推导更复杂 |
+| Swish/SiLU | 标准正态输入下二阶矩约 0.356；随尺度变化 | 需解二阶矩固定点或实测 | 不能直接取 $1/0.356$ 的增益平方 |
 
-\* Swish/SiLU 的因子来自数值模拟（$x \sim \mathcal{N}(0,1)$ 下 $\mathbb{E}[h^2]/\mathbb{E}[x^2] \approx 0.356$，与 ReLU 行同口径），对应初始化方差 $\approx 2.8/n_{in}$。
+SiLU 不像 ReLU 那样正齐次。令输入二阶矩为 1、权重方差为 $v/n_{in}$，则预激活近似 $\sqrt v Z$（$Z\sim\mathcal N(0,1)$），应求 $\mathbb E[\operatorname{SiLU}(\sqrt v Z)^2]=1$。数值积分给 $v\approx2.4297$；直接用 $v=1/0.356\approx2.81$ 会得到约 1.181 的输出二阶矩。这个固定点仍只是前向统计近似，不保证反向梯度稳定。
+
+```python
+import numpy as np
+
+def silu_second_moment(variance, points=80):
+    """Gauss-Hermite 积分：预激活 N(0, variance) 的 SiLU 输出二阶矩。"""
+    nodes, weights = np.polynomial.hermite.hermgauss(points)
+    z = np.sqrt(2 * variance) * nodes
+    h = z / (1 + np.exp(-z))
+    return float(weights @ (h * h) / np.sqrt(np.pi))
+
+print(silu_second_moment(1.0))                  # 约 0.355776
+print(silu_second_moment(1 / silu_second_moment(1.0)))  # 约 1.181106，而非 1
+print(silu_second_moment(2.4297325))            # 约 1
+```
 
 ---
 
@@ -338,14 +353,14 @@ plt.savefig('init_comparison.png', dpi=150)
 ┌─────────────────────────────────────────────────────────────────┐
 │  Xavier 初始化 (2010)                                             │
 │  σ = sqrt(2/(n_in + n_out))                                      │
-│  适用于 tanh / sigmoid                                           │
+│  近线性、零中心激活（如原点附近的 tanh）                         │
 └────────────────────────────┬────────────────────────────────────┘
                              │ ReLU 修正
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  He 初始化 (2015)                                                 │
 │  σ = sqrt(2/n_in)                                                │
-│  适用于 ReLU / LeakyReLU                                         │
+│  ReLU；LeakyReLU 另除以 (1 + α²)                                │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -364,15 +379,15 @@ plt.savefig('init_comparison.png', dpi=150)
 
   线性层二阶矩由 fan_in × Var(W) 缩放，非线性再改变其统计
 
-  初始化就是设定 Var(W) 使得:
-  - 前向传播: Var(h_L) ≈ Var(x)   （信号不爆炸不消失）
-  - 反向传播: Var(∇_W L) ≈ 1     （梯度稳定）
+  初始化根据统计近似设定 Var(W)，目标是:
+  - 前向传播: 保持近线性激活的方差或 ReLU 激活的二阶矩尺度
+  - 反向传播: 避免各层激活梯度尺度持续放大或缩小
 
-  Xavier: σ² = 2/(n_in + n_out)   ← tanh/sigmoid
-  He:     σ² = 2/n_in             ← ReLU（考虑ReLU损失一半信号）
+  Xavier: σ² = 2/(n_in + n_out)   ← 近线性、零中心激活
+  He:     σ² = 2/n_in             ← ReLU（二阶矩减半）
 ```
 
-**一句话总结**：Xavier 和 He 初始化不是经验公式——它们来自"前向传播方差为1 + 反向传播方差为1"这两个约束条件的数学推导。选择哪一个取决于你的激活函数（因为不同激活函数对信号的缩放因子不同）。
+**总结**：Xavier 与 He 都来自初始化时的统计传播分析。Xavier 折中 fan_in 与 fan_out 的方差要求，He 的 fan_in 版本保持 ReLU 前向二阶矩；它们都不保证任意网络的前向与反向方差同时等于 1。
 
 ---
 

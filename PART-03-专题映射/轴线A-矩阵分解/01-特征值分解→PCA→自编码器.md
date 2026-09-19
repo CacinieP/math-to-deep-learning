@@ -16,7 +16,7 @@ $$A = Q\Lambda Q^T$$
 - $\Lambda = \text{diag}(\lambda_1, \lambda_2, \ldots, \lambda_n)$，$\lambda_i$ 是 $A$ 的**特征值**
 - $Q$ 的列 $\mathbf{q}_1, \mathbf{q}_2, \ldots, \mathbf{q}_n$ 是 $A$ 的**特征向量**，彼此正交：$\mathbf{q}_i^T \mathbf{q}_j = \delta_{ij}$
 
-**几何意义**：$A$ 是一个线性变换。特征向量是这个变换的"不动方向"——变换只改变长度（按 $\lambda_i$ 缩放），不改变方向。
+**几何意义**：$A$ 是一个线性变换。特征向量是这个变换的"不动方向"——实特征向量张成的不变直线保持不变；负特征值会反向，零特征值会把向量送到零。
 
 > 📖 详细推导与性质：[特征值与特征向量详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/04-线性代数/05-特征值与特征向量/特征值与特征向量详解.md)
 
@@ -26,7 +26,7 @@ $$A = Q\Lambda Q^T$$
 |------|------|-----------|
 | 特征值为实数 | 实对称矩阵的特征值全为实数；若矩阵半正定（如协方差矩阵），特征值还非负 | PCA 需要排序，实数才有大小关系 |
 | 特征向量正交 | $\mathbf{q}_i \perp \mathbf{q}_j$（$i \neq j$） | 正交基 = 无冗余的坐标系统 |
-| 排序不变性 | 可以按 $|\lambda_1| \geq |\lambda_2| \geq \cdots$ 排序 | 最大的特征值 = 方差最大的方向 |
+| 排序不变性 | 可以按 $|\lambda_1| \geq |\lambda_2| \geq \cdots$ 排序 | 协方差矩阵半正定，此时最大特征值才表示最大方差 |
 | Frobenius范数 | $\|A\|_F^2 = \sum_i \lambda_i^2$ | 矩阵的"能量"全部集中在特征值上 |
 
 ### 1.3 手动计算示例
@@ -105,6 +105,8 @@ def pca_manual(X, k=2):
     X: (n, d) 数据矩阵
     k: 降到 k 维
     """
+    if X.ndim != 2 or X.shape[0] < 2 or not 1 <= k <= X.shape[1]:
+        raise ValueError("PCA needs at least two samples and 1 <= k <= features")
     # 1. 中心化
     X_centered = X - X.mean(dim=0)
 
@@ -124,7 +126,10 @@ def pca_manual(X, k=2):
 
     # 6. 重构（验证信息保留比例）
     X_recon = X_reduced @ Q_k.T + X.mean(dim=0)
-    info_ratio = eigenvalues[:k].sum() / eigenvalues.sum()
+    total_variance = eigenvalues.sum()
+    info_ratio = (eigenvalues[:k].sum() / total_variance
+                  if total_variance > 0 else X.new_tensor(float("nan")))
+    # 全部样本相同时总方差为 0，解释方差比例为 0/0（未定义）。
 
     return X_reduced, Q_k, info_ratio
 
@@ -291,9 +296,9 @@ X → Z (固定)    X → z (固定)    X → N(μ, σ²) → z (随机)
 
 ### 4.2 重参数化技巧的数学本质
 
-$$z \sim \mathcal{N}(\mu, \sigma^2 I)$$
+$$z \sim \mathcal{N}(\mu, \operatorname{diag}(\sigma_1^2,\ldots,\sigma_k^2))$$
 
-直接采样 $z$ 无法反向传播（随机节点没有梯度）。**重参数化**把随机性移到外部：
+普通 `.sample()` 不提供样本到分布参数的路径梯度；期望仍可用 score-function 等估计器求梯度。**重参数化**把随机性移到外部：
 
 $$z = \mu + \sigma \odot \epsilon, \quad \epsilon \sim \mathcal{N}(0, I)$$
 
@@ -314,7 +319,9 @@ def reparameterize(mu, logvar):
 
 ### 4.3 VAE 损失函数：重构 + 正则
 
-$$\mathcal{L} = \underbrace{\|X - \hat{X}\|^2}_{\text{重构损失}} + \underbrace{D_{KL}(q_\phi(z|X) \| p(z))}_{\text{KL 正则}}$$
+$$\mathcal L(x)=\underbrace{\mathbb E_{z\sim q_\phi(z\mid x)}[-\log p_\theta(x\mid z)]}_{\text{重构负对数似然}}+D_{\mathrm{KL}}(q_\phi(z\mid x)\|p(z)).$$
+
+这是单样本负 ELBO。下方代码以一次重参数采样估计期望，并对 batch 求和；平方误差系数为 1 对应固定解码方差 $1/2$，省略了与参数无关的高斯常数。解码方差为 1 时平方误差应乘 $1/2$。参见 [VAE 原论文](https://arxiv.org/abs/1312.6114)。
 
 - **重构损失**：让解码器能准确还原输入（和AE一样）
 - **KL 散度**：让编码器输出的分布 $\mathcal{N}(\mu, \sigma^2)$ 接近标准正态 $\mathcal{N}(0, I)$
@@ -323,7 +330,7 @@ $$\mathcal{L} = \underbrace{\|X - \hat{X}\|^2}_{\text{重构损失}} + \underbra
 
 ```python
 def vae_loss(x_hat, x, mu, logvar):
-    """标准 VAE 损失"""
+    """单次采样的负 ELBO（解码方差 1/2；对 batch 求和；省略常数）。"""
     # 重构损失（MSE 或 BCE）
     recon_loss = nn.functional.mse_loss(x_hat, x, reduction='sum')
 

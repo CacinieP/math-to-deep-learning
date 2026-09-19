@@ -33,7 +33,7 @@ $$A \approx U_k \Sigma_k V_k^T$$
 
 其中 $U_k \in \mathbb{R}^{m \times k}$, $\Sigma_k \in \mathbb{R}^{k \times k}$, $V_k \in \mathbb{R}^{n \times k}$。
 
-这是**最低秩近似**——在秩为 $k$ 的所有矩阵中，$U_k\Sigma_k V_k^T$ 是离 $A$ 最近的（Frobenius范数意义下）。
+这是**最低秩近似**——在秩不超过 $k$ 的所有矩阵中，$U_k\Sigma_k V_k^T$ 是离 $A$ 最近的（Frobenius范数意义下）。
 
 > 📖 矩阵分解的背景：[矩阵详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/04-线性代数/线性代数全貌.md#23-矩阵分解因式分解的矩阵版)
 
@@ -63,7 +63,7 @@ $$u_1 = \frac{Ae_1}{\sqrt{2}} = \frac{1}{\sqrt{2}}\begin{pmatrix} 1 \\ 0 \\ -1 \
 **SVD**（用 $m\times 2$ 的"瘦（thin）"形式，$\Sigma$ 取 $2\times 2$ 对角阵）：
 $$A = \underbrace{\begin{pmatrix} 1/\sqrt{2} & 1/\sqrt{3} \\ 0 & 1/\sqrt{3} \\ -1/\sqrt{2} & 1/\sqrt{3} \end{pmatrix}}_{U_{3\times 2}} \underbrace{\begin{pmatrix} \sqrt{2} & 0 \\ 0 & \sqrt{3} \end{pmatrix}}_{\Sigma_{2\times 2}} \underbrace{\begin{pmatrix} 1 & 0 \\ 0 & 1 \end{pmatrix}}_{V^T}$$
 
-（若按惯例把奇异值降序排列，则 $\sigma_1 = \sqrt{3}$、$\sigma_2 = \sqrt{2}$，把上式各块的列相应对调即可。满 $3\times 3$ 形式需给 $\Sigma$ 补零行、给 $U$ 补一个与前两列正交的第三列，结果相同。）
+（若按惯例把奇异值降序排列，则 $\sigma_1 = \sqrt{3}$、$\sigma_2 = \sqrt{2}$，将 $U$ 的两列、$V^T$ 的两行及 $\Sigma$ 的两个对角元同步对调即可。满 $3\times 3$ 形式需给 $\Sigma$ 补零行、给 $U$ 补一个与前两列正交的第三列，结果相同。）
 
 **数值验证**：
 
@@ -75,15 +75,15 @@ U = np.array([[1/np.sqrt(2), 1/np.sqrt(3)],
               [-1/np.sqrt(2), 1/np.sqrt(3)]])
 Sigma = np.array([[np.sqrt(2), 0], [0, np.sqrt(3)]])   # 2x2 瘦形式，与 3x2 的 U 匹配
 V = np.eye(2)
-print(np.max(np.abs(U @ Sigma @ V.T - A)))  # 0.0 —— 精确重构 A
-print(np.max(np.abs(U.T @ U - np.eye(2))))  # 0.0 —— U 列正交
+print(np.max(np.abs(U @ Sigma @ V.T - A)))  # 浮点舍入误差量级 —— 重构 A
+print(np.max(np.abs(U.T @ U - np.eye(2))))  # 浮点舍入误差量级 —— U 列正交
 ```
 
 **低秩截断示例**：只保留最大的奇异值 $\sqrt{3}$（对应 $v_2 = e_2$，$u_2 = (1,1,1)/\sqrt{3}$）：
 
 $$A \approx \sqrt{3}\, u_2 v_2^T = \begin{pmatrix} 0 & 1 \\ 0 & 1 \\ 0 & 1 \end{pmatrix}$$
 
-误差恰好为 $\|A - A_1\|_F = \sqrt{2} = \sigma_2$——这正是 Eckart-Young 定理：本例只丢弃一个非零奇异值，所以 Frobenius 误差等于它；一般应为所有被丢弃奇异值平方和的平方根，谱范数误差才是其中最大值。
+误差恰好为 $\|A - A_1\|_F = \sqrt{2}$（降序排列后的第二奇异值）——这正是 Eckart-Young 定理：本例只丢弃一个非零奇异值，所以 Frobenius 误差等于它；一般应为所有被丢弃奇异值平方和的平方根，谱范数误差才是其中最大值。
 
 ---
 
@@ -215,8 +215,8 @@ R_pred = P_learned @ Q_learned.T
 |--------|---------------|---------|
 | `P @ Q.T` | $\hat{R} = PQ^T$ | 矩阵分解的预测 |
 | `(R - R_hat) * mask` | 只看有评分的元素 | 稀疏矩阵的处理 |
-| `error @ Q` | $\nabla_P = -2(R - PQ^T)Q$ | 对 $P$ 的梯度 |
-| `error.T @ P` | $\nabla_Q = -2(R - PQ^T)^TP$ | 对 $Q$ 的梯度 |
+| `error @ Q` | $\nabla_P=-2E Q/|\Omega|+0.02P$，$E=(R-PQ^T)\odot M$ | 对 $P$ 的梯度 |
+| `error.T @ P` | $\nabla_Q=-2E^T P/|\Omega|+0.02Q$ | 对 $Q$ 的梯度 |
 | `0.01 * (P**2).sum()` | $\lambda\|P\|_F^2$ | L2正则（Tikhonov正则化） |
 
 ---
@@ -341,7 +341,7 @@ word_embeddings_svd = U[:, :k] @ torch.diag(S[:k])  # (vocab, k)
 
 # Word2Vec（神经网络的等价视角）
 # 本质上是在做：给定词 w 预测上下文 c 的概率
-# 最优的嵌入矩阵 = 词-上下文共现矩阵的因子分解
+# 不能一般声称最优嵌入等于原始共现矩阵的分解
 # SGNS 在特定理想化条件下与移位 PMI 矩阵分解相关，通常不等价于 SVD
 ```
 
@@ -433,7 +433,7 @@ for i, e in enumerate(energy):
 **特征值分解 vs SVD**：
 
 ```
-特征值分解:     A = QΛQ^T          ← A 必须是方阵（通常对称）
+特征值分解:     A = QΛQ^T          ← 此正交形式要求实对称；一般可对角化矩阵用 PΛP⁻¹
                     ↓
                 PCA 直接用
 

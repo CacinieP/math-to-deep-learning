@@ -8,7 +8,7 @@
 
 ### 1.1 多元 Taylor 展开
 
-对于 $f: \mathbb{R}^n \to \mathbb{R}$，在 $\mathbf{x}_0$ 处的 Taylor 展开：
+若 $f$ 在邻域内二阶可微且 Hessian 局部 Lipschitz（例如三阶连续可微），在 $\mathbf{x}_0$ 处的 Taylor 展开：
 
 $$f(\mathbf{x}) = f(\mathbf{x}_0) + \nabla f(\mathbf{x}_0)^T(\mathbf{x} - \mathbf{x}_0) + \frac{1}{2}(\mathbf{x} - \mathbf{x}_0)^T H(\mathbf{x}_0)(\mathbf{x} - \mathbf{x}_0) + O(\|\mathbf{x} - \mathbf{x}_0\|^3)$$
 
@@ -60,7 +60,7 @@ $$f(\mathbf{x}) \approx f(\mathbf{x}^*) + \frac{1}{2}(\mathbf{x} - \mathbf{x}^*)
 | 所有特征值 > 0（正定） | 局部极小 |
 | 所有特征值 < 0（负定） | 局部极大 |
 | 特征值有正有负（不定） | 鞍点 |
-| 有特征值 = 0 | 需要更高阶分析 |
+| 半正定/半负定且有零特征值 | 二阶判别不充分，需进一步分析；若同时有正负特征值，仍已可判为鞍点 |
 
 > 📖 正定性判别：[二次型详解](https://github.com/CacinieP/Mathematics-Universe/blob/main/04-线性代数/06-二次型/二次型详解.md#31-正定判别)
 
@@ -94,7 +94,7 @@ $$\mathbf{x}_{k+1} = \mathbf{x}_k + \mathbf{p}_k = \mathbf{x}_k - H(\mathbf{x}_k
 | 方向 | 最陡下降方向 | 考虑了曲率的方向 |
 | 步长大小 | 需要手动选择 $\eta$ | 自动（由 Hessian 决定） |
 | 收敛速度 | 线性（误差每步乘常数，$e_{k+1} \leq C e_k$） | 二次（误差每步平方，$e_{k+1} \leq C e_k^2$） |
-| 每步计算 | $O(n)$ | $O(n^3)$（Hessian 求逆） |
+| 每步计算 | 一次梯度求值 + $O(n)$ 更新 | Hessian 构造 + 稠密线性求解 $O(n^3)$ |
 | 内存 | $O(n)$ | $O(n^2)$（存储 Hessian） |
 
 这些速度需要条件：梯度下降在光滑强凸目标及适当步长下线性收敛；Newton 在非退化极小点附近、Hessian 足够光滑且初值足够近时二次收敛。一般凸或非凸函数不具备这些保证。
@@ -172,6 +172,8 @@ $$B_{k+1} = B_k + \frac{y_k y_k^T}{y_k^T s_k} - \frac{B_k s_k s_k^T B_k}{s_k^T B
 
 其中 $s_k = \mathbf{x}_{k+1} - \mathbf{x}_k$, $y_k = \nabla f(\mathbf{x}_{k+1}) - \nabla f(\mathbf{x}_k)$。
 
+当 $B_k\succ0$ 且 $y_k^Ts_k>0$ 时上述 BFGS 更新保持正定；通常用 Wolfe 线搜索或阻尼维护曲率条件。
+
 **L-BFGS**：BFGS 的有限内存版本，只存储最近 $m$ 个 $(s, y)$ 对（通常 $m=10$），内存从 $O(n^2)$ 降到 $O(mn)$。
 
 ```python
@@ -233,19 +235,20 @@ $$F_{\text{Fisher}} \approx A \otimes B$$
 # 概念：K-FAC 对单层的近似
 # 对于 y = Wx (W: [out, in], x: [in])
 # Jacobian = W (对输入的导数)
-# Fisher 矩阵 F = E[x x^T] ⊗ E[dy dy^T]
+# 列优先向量化权重，令 δ 为对该层预激活的对数似然梯度：
+# Fisher 块 F = E[(x x^T) ⊗ (δ δ^T)] ≈ E[x x^T] ⊗ E[δ δ^T]
 # 可以分解为两个小矩阵的 Kronecker 积
 # 求逆: (A⊗B)^(-1) = A^(-1) ⊗ B^(-1)
 # 这样 n×n 的求逆变成了两个小矩阵的求逆
 ```
 
 **K-FAC 在大型语言模型训练中的应用**：
-- DeepMind 用 K-FAC 加速 Transformer 训练
-- 在大规模模型上，K-FAC 每步的计算开销高于 SGD，但换取了更快的收敛（更少步数达到同等损失），整体上可加速训练
+- K-FAC 是按层近似 Fisher 的方法，原始研究报告了特定网络上的优化收益。
+- 是否加速某个 Transformer 必须比较总运行时间、统计估计与通信成本，不能由曲率近似直接推出。参见 [Martens 与 Grosse 原论文](https://proceedings.mlr.press/v37/martens15.html)。
 
 ### 4.3 Newton-CG 方法
 
-**Newton-CG**（Newton Conjugate Gradient）：用共轭梯度法求解 Newton 方程 $Hp = -g$，**不需要显式构建 Hessian**。
+**Newton-CG**（Newton Conjugate Gradient）：用共轭梯度法求解 Newton 方程 $Hp = -g$，**不需要显式构建 Hessian**。标准 CG 要求系数矩阵对称正定；非凸问题使用截断 CG 检测负曲率，或配合阻尼/信赖域。
 
 ```
 Newton-CG 迭代:

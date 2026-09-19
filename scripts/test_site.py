@@ -34,12 +34,21 @@ class ReadingSiteTests(unittest.TestCase):
 
     def test_table_math_bars_and_display_math(self):
         actual = transform('| $P(A|B)$ |\n$$x^2$$\n', Path('README.md'), 'Mathematics-Universe', self.catalog)
-        self.assertIn(r'$P(A\vert B)$', actual)
+        self.assertIn(r'$P(A\vert{}B)$', actual)
         import markdown
         rendered = markdown.markdown(actual, extensions=['tables', 'pymdownx.arithmatex'], extension_configs={'pymdownx.arithmatex': {'generic': True}})
-        self.assertIn(r'P(A\vert B)', rendered)
+        self.assertIn(r'P(A\vert{}B)', rendered)
         self.assertNotIn(r'P(A\|B)', rendered)
         self.assertIn('$$\nx^2\n$$', actual)
+
+    def test_table_math_closing_bar_is_not_swallowed(self):
+        import markdown
+        from bs4 import BeautifulSoup
+        actual = transform(r'| Name | $p_X=p_Z|J|$ |' + '\n|---|---|\n', Path('README.md'), 'Mathematics-Universe', self.catalog)
+        rendered = markdown.markdown(actual, extensions=['tables', 'pymdownx.arithmatex'], extension_configs={'pymdownx.arithmatex': {'generic': True}})
+        formulas = BeautifulSoup(rendered, 'html.parser').select('.arithmatex')
+        self.assertEqual(len(formulas), 1)
+        self.assertIn(r'p_X=p_Z\vert{}J\vert{}', formulas[0].get_text())
 
     def test_readme_and_directory_links(self):
         actual = transform('[首页](../README.md) [章节](./chapter/)', Path('a/file.md'), 'Mathematics-Universe', self.catalog)
@@ -52,6 +61,14 @@ class ReadingSiteTests(unittest.TestCase):
             for name in ['README.md', '.repo_memory/private.md', 'node_modules/pkg/README.md', '.site-docs/generated.md', 'chapter/lesson.md']:
                 path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text('# test')
             self.assertEqual(sources(root), [Path('README.md'), Path('chapter/lesson.md')])
+
+    def test_unrendered_math_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'index.html').write_text('<article>Lost formula $x = $</article>')
+            with self.assertRaises(SystemExit): check(root)
+            (root / 'index.html').write_text('<article><span class="arithmatex">\\(x\\)</span><code>$literal$</code></article>')
+            check(root)
 
     def test_broken_fragments_fail_the_site_check(self):
         with tempfile.TemporaryDirectory() as directory:
