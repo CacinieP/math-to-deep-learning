@@ -104,7 +104,9 @@ def protect_wiki_brackets(text):
     # ordinary inline code. Display formulas and fenced code return earlier.
     chunks = re.split(r'(`+[^`]*`+)', text)
     for i in range(0, len(chunks), 2):
-        chunks[i] = chunks[i].replace('[[', '&#91;&#91;').replace(']]', '&#93;&#93;')
+        # Gollum also recognizes Wiki links after HTML-entity decoding. Code
+        # spans preserve the literal brackets through that additional pass.
+        chunks[i] = re.sub(r'\[\[[^\n]*?\]\]', lambda match: '`' + match[0] + '`', chunks[i])
     return ''.join(chunks)
 
 
